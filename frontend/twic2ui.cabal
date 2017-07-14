@@ -11,12 +11,16 @@ Category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
 
-library
-  exposed-modules:     Main
 
+executable twic2ui
   other-modules:       BL.Types
 
+  main-is:             UIMain.hs
 
+  hs-source-dirs:      src, ../backend/src
+  default-language:    Haskell2010
+  cpp-options:         -DGHCJS_BROWSER
+  ghc-options:         -fno-warn-typed-holes
 
   build-depends:       base
                      , base-prelude
@@ -27,14 +31,3 @@ library
                      , time
                      , text
                      , twitter-types
-
-  hs-source-dirs:      src, ../backend/src
-  default-language:    Haskell2010
-  cpp-options:         -DGHCJS_BROWSER
-  ghc-options:         -fno-warn-typed-holes
-
-executable twic2ui
-  main-is:             src/Main.hs
-  build-depends:       twic2ui
-  default-language:    Haskell2010
-  build-depends:       base

@@ -17,7 +17,8 @@ backend:
 frontend:
 	cd frontend \
 	  && stack build \
-	  && cp "`stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/all.js" ../webexe/Main.js
+	  && cp "`stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/all.js" ../webexe/Main.js \
+		&& echo "Installed jsexe to ./webexe/"
 
 backend-clean:
 	cd backend && stack clean
