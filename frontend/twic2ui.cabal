@@ -1,0 +1,40 @@
+
+name:                twic2ui
+version:             0.1.0.0
+synopsis:            Web front-end for Twic2
+Description:         Twic is a simple reader of a Twitter user's home feed. It's main goal is a search of a better Twitter feed usage experience.
+License:             AllRightsReserved
+Author:              Eugene Naumenko eugene.naumenko@gmail.com
+Maintainer:          eugene.naumenko@gmail.com
+Stability:           Experimental
+Category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Main
+
+  other-modules:       BL.Types
+
+
+
+  build-depends:       base
+                     , base-prelude
+                     , ghcjs-base
+                     , aeson
+                     , bytestring
+                     , bytestring-conversion
+                     , time
+                     , text
+                     , twitter-types
+
+  hs-source-dirs:      src, ../backend/src
+  default-language:    Haskell2010
+  cpp-options:         -DGHCJS_BROWSER
+  ghc-options:         -fno-warn-typed-holes
+
+executable twic2ui
+  main-is:             src/Main.hs
+  build-depends:       twic2ui
+  default-language:    Haskell2010
+  build-depends:       base

@@ -1,0 +1,75 @@
+Name:                twic2
+Version:             0.1
+Synopsis:            A Twitter client with better UX
+Description:         Twic is a simple reader of a Twitter user's home feed. It's main goal is a search of a better Twitter feed usage experience.
+License:             AllRightsReserved
+Author:              Eugene Naumenko eugene.naumenko@gmail.com
+Maintainer:          eugene.naumenko@gmail.com
+Stability:           Experimental
+Category:            Web
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+Executable twic
+  hs-source-dirs: src
+  main-is: Main.hs
+  other-modules:
+      BL.CloudDataLayer
+      BL.Core
+      BL.DataLayer
+      BL.Parser
+      BL.Types
+      BL.Worker
+      Config
+      UI.CLI.Cli
+      UI.HTTP.App
+      UI.HTTP.Css
+      UI.HTTP.Html
+      UI.HTTP.Json
+
+  Build-depends:
+      bytestring                >= 0.9.1
+    , base
+    , aeson
+    , authenticate-oauth
+    , http-conduit
+    , text
+    , async
+    , utf8-string
+    , http-types
+    , wai                       >= 1.3
+    , wai-extra                 >= 1.3
+    , warp                      >= 1.3
+    , blaze-html                >= 0.5
+    , blaze-markup              >= 0.5.1
+    , blaze-builder
+    , transformers
+    , clay
+    , regex-posix
+    , lifted-base
+    , parsec
+    , split
+    , wai-app-static
+    , system-fileio
+    -- , wai-dispatch
+    , mtl
+    , acid-state
+    , safecopy
+    , websockets
+    , wai-websockets
+    , twitter-conduit         >= 0.1.0
+    , twitter-types-lens
+    , conduit-extra
+    , conduit
+    , twitter-types           >= 0.7.0
+    , unordered-containers
+    , uuid
+    , time
+    , hslogger
+    , unix
+    , containers
+    , file-embed
+    , process
+    , configurator
+    , lens-action
+    , lens

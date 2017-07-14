@@ -1,0 +1,7 @@
+oauthConsumerKey    = "..."
+oauthConsumerSecret = "..."
+
+accessToken         = "..."
+accessTokenSecret   = "..."
+
+cloudDbUrl          = "..."
