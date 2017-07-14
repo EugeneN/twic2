@@ -27,3 +27,6 @@ frontend-clean:
 
 run:
 	cd backend && stack exec twic serve
+
+atom-build-any:
+	if [[ "${ARG}" == *"frontend"* ]]; then make frontend; else make backend; fi
