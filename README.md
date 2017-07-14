@@ -1,5 +1,7 @@
 # README #
 
+[![Join the chat at https://gitter.im/twic2/Lobby](https://badges.gitter.im/twic2/Lobby.svg)](https://gitter.im/twic2/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Twic2 is an experiment in teaching Haskell and architecture by writing new frontend for Twic1.
 
 
