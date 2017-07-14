@@ -47,3 +47,18 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
  ```
 
  Default browser will open with twic UI. In case you happen to use poorly configured desktop environment open http://localhost:3000 manually.
+
+ ---
+
+ # Next steps
+
+ The goal is to write new UI for twic. For this we must discuss the architecture for the frontend (UI) application, implementation details and visual design/UX. More details on original twic design are here: https://github.com/EugeneN/twic/wiki/About
+
+ The architecture will not be Elm/React-like one obviously. In general this should be a standalone single page application with support for
+ offline work. The app source should be served by the backend, and once initialized in a browser it should connect to the backend streaming API using websockets.
+
+ The app will consist of several independent components - a global feed, individual tweet feed, new tweet, retweet, reply components, search, notifications, private messages.
+
+ These business tasks influence implementation details - namely, implementation must provide a way to work with standalone isolated incapsulated composable components. There are few candidate libraries for this task, which provide different levels of abstractions.
+
+ Visual design and UX should be similar to twic1 one's, with the difference that it should not use right click as the main and only input method.
