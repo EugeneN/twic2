@@ -4,4 +4,4 @@ packages:
 - '.'
 extra-deps:
 - twitter-conduit-0.2.2.1
-resolver: lts-7.19
+resolver: lts-6.13

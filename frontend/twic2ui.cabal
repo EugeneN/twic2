@@ -31,3 +31,7 @@ executable twic2ui
                      , time
                      , text
                      , twitter-types
+                     , reflex
+                     , reflex-dom
+                     , safe
+                     , containers

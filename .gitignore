@@ -17,4 +17,4 @@ backend/.stack-work
 frontend/.stack-work
 backend/twic.db/**
 
-webexe/Main.js
+webexe/*

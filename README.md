@@ -11,44 +11,44 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
 
 1. Install Stack
 
- Follow instructions here: https://docs.haskellstack.org/en/stable/install_and_upgrade/
+   Follow instructions here: https://docs.haskellstack.org/en/stable/install_and_upgrade/
 
 2. Install node-7.4.0
 
- hint: you can use `nvm` (https://github.com/creationix/nvm)
+   hint: you can use `nvm` (https://github.com/creationix/nvm)
 
 
 3. Clone
- ```
- $ git clone https://github.com/EugeneN/twic2.git
- $ cd twic2
- ```
+   ```
+   $ git clone https://github.com/EugeneN/twic2.git
+   $ cd twic2
+   ```
 
 4. Setup
- ```
- $ make setup
- ```
- note: this takes a long time
+   ```
+   $ make setup
+   ```
+ note: this takes a *long* time
 
 5. Configure
 
-  Follow instructions here: https://github.com/EugeneN/twic/wiki/Quick-start#how-to-configure-and-run-twic
+   Follow instructions here: https://github.com/EugeneN/twic/wiki/Quick-start#how-to-configure-and-run-twic
 
 ## Every time
 
 6. Build
- ```
- $ make frontend
- $ make backend
- ```
+   ```
+   $ make frontend
+   $ make backend
+   ```
 
 7. Run
 
- ```
- $ make run
- ```
+   ```
+   $ make run
+   ```
 
- Default browser will open with twic UI. In case you happen to use poorly configured desktop environment open http://localhost:3000 manually.
+   Default browser will open with twic UI. In case you happen to use poorly configured desktop environment open http://localhost:3000 manually.
 
  ---
 
@@ -64,3 +64,18 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
  These business tasks influence implementation details - namely, implementation must provide a way to work with standalone isolated incapsulated composable components. There are few candidate libraries for this task, which provide different levels of abstractions.
 
  Visual design and UX should be similar to twic1 one's, with the difference that it should not use right click as the main and only input method.
+
+
+---
+
+# Notes
+
+- happy bug https://github.com/commercialhaskell/stack/issues/1258#issuecomment-229167556
+
+  Workaround:
+
+  ```
+  cd frontend
+  GHCPATH=`cd ../backend && stack exec which ghc`
+  PATH=$PATH:`dirname $GHCPATH` stack build
+  ```
