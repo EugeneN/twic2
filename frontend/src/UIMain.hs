@@ -9,6 +9,7 @@ import Control.Applicative  ((<*>), (<$>))
 import qualified Data.Map   as Map
 import Data.Monoid          ((<>))
 import qualified Data.Text  as T
+import qualified Data.Text.Encoding  as TE
 
 import qualified Reflex.Dom as RD
 import qualified Reflex     as R
@@ -39,17 +40,30 @@ main0 =
                  }
   in RD.mainWidget $ RD.el "div" $ RD.text $ T.pack $ "Welcome to Reflex" <> show t
 
-main1 = RD.mainWidget $ RD.el "div" $ do
-  nx <- numberInput
-  d  <- RD.dropdown "*" (R.constDyn ops) RD.def
-  ny <- numberInput
+main1 = RD.mainWidget $ do
+  RD.el "div" $ do
+    rec t <- RD.textInput $ RD.def RD.& RD.setValue RD..~ fmap (const "") newMessage
+        b <- RD.button "Test Websocket"
+        let newMessage = fmap ((:[]) . TE.encodeUtf8) $ RD.tag (RD.current $ RD.value t) $ R.leftmost [b, RD.keypress RD.Enter t]
 
-  let values = R.zipDynWith (,) nx ny
-      result = R.zipDynWith (\o (x,y) -> textToOp o <$> x <*> y) (RD._dropdown_value d) values
-      resultText = fmap (T.pack . show) result
+    ws <- RD.webSocket "ws://echo.websocket.org" $ RD.def RD.& RD.webSocketConfig_send RD..~ newMessage
+    receivedMessages <- R.foldDyn (\m ms -> ms ++ [m]) [] $ RD._webSocket_recv ws
 
-  RD.text " = "
-  numberLabel result
+    RD.el "p" $ RD.text "Responses from the WebSocket.org echo service:"
+    RD.el "ul" $ RD.simpleList receivedMessages $ \m -> RD.el "li" $ RD.dynText $ fmap TE.decodeUtf8 m
+
+
+  RD.el "div" $ do
+    nx <- numberInput
+    d  <- RD.dropdown "*" (R.constDyn ops) RD.def
+    ny <- numberInput
+
+    let values = R.zipDynWith (,) nx ny
+        result = R.zipDynWith (\o (x,y) -> textToOp o <$> x <*> y) (RD._dropdown_value d) values
+        resultText = fmap (T.pack . show) result
+
+    RD.text " = "
+    numberLabel result
 
   pure ()
 
