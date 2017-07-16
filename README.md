@@ -28,7 +28,7 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
    ```
    $ make setup
    ```
- note: this takes a *long* time
+   note: this takes a *long* time
 
 5. Configure
 
