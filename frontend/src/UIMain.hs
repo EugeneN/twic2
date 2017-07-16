@@ -39,15 +39,34 @@ main0 =
 
 main1 = RD.mainWidget $ RD.el "div" $ do
   nx <- numberInput
-  d <- RD.dropdown "*" (R.constDyn ops) RD.def
+  d  <- RD.dropdown "*" (R.constDyn ops) RD.def
   ny <- numberInput
 
-  values <- R.combineDyn (,) nx ny
-  result <- R.combineDyn (\o (x,y) -> textToOp o <$> x <*> y) (RD._dropdown_value d) values
-  let resultText = fmap (T.pack . show) result
+  let values = R.zipDynWith (,) nx ny
+      result = R.zipDynWith (\o (x,y) -> textToOp o <$> x <*> y) (RD._dropdown_value d) values
+      resultText = fmap (T.pack . show) result
 
   RD.text " = "
-  RD.dynText resultText
+  numberLabel result
+
+  pure ()
+
+numberLabel :: (RD.MonadWidget t m, Num a, Ord a, Show a) => R.Dynamic t (Maybe a) -> m ()
+numberLabel x = do
+  RD.elDynAttr "span" (fmap valToAttr x) $
+    RD.dynText (fmap (T.pack . show) x)
+
+  where
+    negState  = "style" RD.=: "color: red"
+    posState  = "style" RD.=: "color: green"
+    zeroState = "style" RD.=: "color: blue"
+    nanState  = "style" RD.=: "color: white; background-color: red;"
+
+    valToAttr v = case v of
+      Nothing            -> nanState
+      Just x | x > 0     -> posState
+             | x == 0    -> zeroState
+             | otherwise -> negState
 
 numberInput :: (RD.MonadWidget t m) => m (R.Dynamic t (Maybe Double))
 numberInput = do
