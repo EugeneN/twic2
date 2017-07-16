@@ -4,16 +4,18 @@
 module Main where
 
 import Prelude
-import Data.Monoid ((<>))
-import qualified Data.Text as T
-import BL.Types (Tweet(..), Author(..), Entities(..), TweetElement(..))
+import Control.Applicative  ((<*>), (<$>))
+
+import qualified Data.Map   as Map
+import Data.Monoid          ((<>))
+import qualified Data.Text  as T
 
 import qualified Reflex.Dom as RD
 import qualified Reflex     as R
--- import  Reflex.Class (zipDynWith, zipDyn)
-import qualified Data.Map   as Map
 import qualified Safe       as S
-import Control.Applicative ((<*>), (<$>))
+
+import BL.Types             (Tweet(..), Author(..), Entities(..), TweetElement(..))
+
 
 main = main1
 
