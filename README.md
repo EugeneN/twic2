@@ -63,7 +63,7 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
 
  These business tasks influence implementation details - namely, implementation must provide a way to work with standalone isolated incapsulated composable components. There are few candidate libraries for this task, which provide different levels of abstractions.
 
- Visual design and UX should be similar to twic1 one's, with the difference that it should not use right click as the main and only input method.
+ Visual design and UX should be similar to that of twic1, with the difference that it should not use right click as the main and only input method.
 
 
 ---
@@ -75,7 +75,7 @@ Twic2 is an experiment in teaching Haskell and architecture by writing new front
   Workaround:
 
   ```
-  cd frontend
-  GHCPATH=`cd ../backend && stack exec which ghc`
-  PATH=$PATH:`dirname $GHCPATH` stack build
+  $ cd frontend
+  $ GHCPATH=`cd ../backend && stack exec which ghc`
+  $ PATH=$PATH:`dirname $GHCPATH` stack build
   ```
