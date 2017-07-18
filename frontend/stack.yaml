@@ -7,46 +7,39 @@ packages:
   extra-dep: true
 
 - location:
-    git: https://github.com/reflex-frp/reflex-dom.git # reflex-dom-0.4
-    commit: 275939f650b87d2d46b6b8416655d963fee9280e
+    git: https://github.com/EugeneN/haskell-virtualdom.git
+    commit: f38e01714f8680450c8759e85f228ac09086549c
   extra-dep: true
-  subdirs:
-  - reflex-dom
-  - reflex-dom-core
 
 - location:
-    git: https://github.com/EugeneN/jsaddle.git # fixed GHC_OPTIONS pragmas not supported by 7.10.3 (?)
-    commit: 35f7fc11e29060469637b35ba70cc93845d4f0c3
+    git: https://github.com/bennofs/reflex-host.git
+    commit: 219c162bec3c996ec59acde2fba92a666ccf0c4f
   extra-dep: true
-  subdirs:
-  - jsaddle
 
 
-resolver: lts-6.13
-compiler: ghcjs-0.2.0.9006013_ghc-7.10.3
-compiler-check: match-exact
-setup-info:
-  ghcjs:
-    source:
-      ghcjs-0.2.0.9006013_ghc-7.10.3:
-         url: "http://tolysz.org/ghcjs/lts-6.13-9006013.tar.gz"
-         sha1: "7ae7c6571e0fc7642701af3d8a63739369e0f6e8"
-
-# base-4.9.0 (ghc-8.0.2) (latest stable) has brokem -XImpredicativePolymorphism, which is used in reflex-dom
-# resolver: lts-7.19
-# compiler: ghcjs-0.2.1.9007019_ghc-8.0.1
+# resolver: lts-6.13
+# compiler: ghcjs-0.2.0.9006013_ghc-7.10.3
 # compiler-check: match-exact
-#
 # setup-info:
 #   ghcjs:
 #     source:
-#       ghcjs-0.2.1.9007019_ghc-8.0.1:
-#            url: http://ghcjs.tolysz.org/ghc-8.0-2017-02-05-lts-7.19-9007019.tar.gz
-#            sha1: d2cfc25f9cda32a25a87d9af68891b2186ee52f9
+#       ghcjs-0.2.0.9006013_ghc-7.10.3:
+#          url: "http://tolysz.org/ghcjs/lts-6.13-9006013.tar.gz"
+#          sha1: "7ae7c6571e0fc7642701af3d8a63739369e0f6e8"
+
+resolver: lts-7.19
+compiler: ghcjs-0.2.1.9007019_ghc-8.0.1
+compiler-check: match-exact
+
+setup-info:
+  ghcjs:
+    source:
+      ghcjs-0.2.1.9007019_ghc-8.0.1:
+           url: http://ghcjs.tolysz.org/ghc-8.0-2017-02-05-lts-7.19-9007019.tar.gz
+           sha1: d2cfc25f9cda32a25a87d9af68891b2186ee52f9
 
 extra-deps:
 - reflex-0.5.0
-- reflex-dom-0.4
 - ref-tf-0.4.0.1
 - mime-0.4.0.2
 - prim-uniq-0.1.0.1
@@ -59,7 +52,7 @@ extra-deps:
 - lens-4.15.3
 - th-abstraction-0.2.3.0
 - kan-extensions-5.0.2
+- virtualdom-0.1.0.0
 
 ghc-options:
-    # All packages
     "*": -DGHCJS_BROWSER

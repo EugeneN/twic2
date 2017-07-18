@@ -1,105 +1,132 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecursiveDo       #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecursiveDo           #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Main where
 
 import Prelude
-import Control.Applicative  ((<*>), (<$>))
+import Control.Applicative           ((<*>), (<$>))
+import Control.Concurrent            (forkIO, threadDelay)
+import Control.Monad                 (void, forever)
+import Control.Monad.IO.Class        (liftIO)
 
-import qualified Data.Map   as Map
-import Data.Monoid          ((<>))
-import qualified Data.Text  as T
-import qualified Data.Text.Encoding  as TE
+import Data.Maybe                    (Maybe(..))
+import Data.Monoid
+import qualified Data.Text           as T
 
-import qualified Reflex.Dom as RD
-import qualified Reflex     as R
-import qualified Safe       as S
+import qualified Reflex              as R
+import qualified Reflex.Host.App     as RHA
 
-import BL.Types             (Tweet(..), Author(..), Entities(..), TweetElement(..))
+import qualified Data.VirtualDOM     as VD
+import qualified Data.VirtualDOM.DOM as DOM
 
-
-main = main1
-
-
-main0 =
-  let t = Tweet  { text       = [PlainText "ceci n'est pas un tweet"]
-                 , created_at = "?"
-                 , id_        = 123
-                 , id_str     = "???"
-                 , user       = Author { name                  = "Text"
-                                       , authorId              = 123
-                                       , screen_name           = "Text"
-                                       , default_profile_image = False
-                                       , profile_image_url     = "???" }
-                 , entities   = Entities { urls     = []
-                                         , hashtags = []
-                                         , media    = Nothing }
-                 , retweet    = Nothing
-                 , status_favorited = Nothing
-                 , status_retweeted = Nothing
-                 }
-  in RD.mainWidget $ RD.el "div" $ RD.text $ T.pack $ "Welcome to Reflex" <> show t
-
-main1 = RD.mainWidget $ do
-  RD.el "div" $ do
-    rec t <- RD.textInput $ RD.def RD.& RD.setValue RD..~ fmap (const "") newMessage
-        b <- RD.button "Test Websocket"
-        let newMessage = fmap ((:[]) . TE.encodeUtf8) $ RD.tag (RD.current $ RD.value t) $ R.leftmost [b, RD.keypress RD.Enter t]
-
-    ws <- RD.webSocket "ws://echo.websocket.org" $ RD.def RD.& RD.webSocketConfig_send RD..~ newMessage
-    receivedMessages <- R.foldDyn (\m ms -> ms ++ [m]) [] $ RD._webSocket_recv ws
-
-    RD.el "p" $ RD.text "Responses from the WebSocket.org echo service:"
-    RD.el "ul" $ RD.simpleList receivedMessages $ \m -> RD.el "li" $ RD.dynText $ fmap TE.decodeUtf8 m
+import BL.Types                      (Tweet, Author, Entities, TweetElement)
 
 
-  RD.el "div" $ do
-    nx <- numberInput
-    d  <- RD.dropdown "*" (R.constDyn ops) RD.def
-    ny <- numberInput
+-- `l` is DOM.Node in currently; polymorphic to enable other implementations
+type AppContainer t m l = (RHA.MonadAppHost t m, l ~ DOM.Node) => l -> TheApp t m l -> m ()
+type AppHost            = (forall t m l . l ~ DOM.Node => AppContainer t m l) -> (forall t m l . TheApp t m l) -> IO ()
+type TheApp t m l       = (RHA.MonadAppHost t m) => m (R.Dynamic t (VD.VNode l))
+type Sink a             = a -> IO Bool
 
-    let values = R.zipDynWith (,) nx ny
-        result = R.zipDynWith (\o (x,y) -> textToOp o <$> x <*> y) (RD._dropdown_value d) values
-        resultText = fmap (T.pack . show) result
+socketUrl = "ws://localhost:3000"
+-- socketUrl = "ws://echo.websocket.org"
 
-    RD.text " = "
-    numberLabel result
+--- Entry point ----------------------------------------------------------------
 
-  pure ()
+main = hostApp appContainer theApp
 
-numberLabel :: (RD.MonadWidget t m, Num a, Ord a, Show a) => R.Dynamic t (Maybe a) -> m ()
-numberLabel x = do
-  RD.elDynAttr "span" (fmap valToAttr x) $
-    RD.dynText (fmap (T.pack . show) x)
+--- Kernel ---------------------------------------------------------------------
+
+hostApp :: AppHost
+hostApp appContainer anApp = do
+  -- prepare DOM for the app
+  dombody     <- VD.getBody :: IO DOM.Node
+  containerEl <- (VD.createElement VD.domAPI) "div"
+  (VD.appendChild VD.domAPI) containerEl dombody
+
+  -- run the app
+  R.runSpiderHost $ RHA.hostApp (appContainer containerEl anApp)
+
+
+(~>) :: RHA.MonadAppHost t m => R.Event t a -> (a -> IO b) -> m ()
+(~>) ev sink = RHA.performEvent_ $ (liftIO . void . sink) <$> ev
+
+appContainer :: AppContainer t m l
+appContainer container anApp = do
+  (vdomEvents, vdomSink) <- RHA.newExternalEvent
+
+  dynView <- anApp
+  curView <- R.sample $ R.current dynView
+
+  let initialVDom = (Just curView, Nothing)
+
+  vdomDyn <- R.foldDyn (\new (old, _) -> (Just new, old)) initialVDom (R.updated dynView)
+
+  (R.updated vdomDyn) ~> vdomSink
+  vdomEvents ~> draw
+
+  liftIO . void . forkIO  $ kickstart vdomSink initialVDom
 
   where
-    negState  = "style" RD.=: "color: red"
-    posState  = "style" RD.=: "color: green"
-    zeroState = "style" RD.=: "color: blue"
-    nanState  = "style" RD.=: "color: white; background-color: red;"
+    kickstart sink val = do
+      threadDelay 10000 -- XXX FIXME
+      sink val
+      pure ()
 
-    valToAttr v = case v of
-      Nothing            -> nanState
-      Just x | x > 0     -> posState
-             | x == 0    -> zeroState
-             | otherwise -> negState
+    draw :: (l ~ DOM.Node) => (Maybe (VD.VNode l), Maybe (VD.VNode l)) -> IO ()
+    draw (newVdom, oldVdom) = void . forkIO $ do
+      print "draw"
+      VD.patch VD.domAPI container oldVdom newVdom
 
-numberInput :: (RD.MonadWidget t m) => m (R.Dynamic t (Maybe Double))
-numberInput = do
-  let errorState = "style" RD.=: "border-color: red"
-      validState = "style" RD.=: "border-color: green"
-  rec n <- RD.textInput $ RD.def RD.& RD.textInputConfig_inputType    RD..~ "number"
-                                 RD.& RD.textInputConfig_initialValue RD..~ "0"
-                                 RD.& RD.textInputConfig_attributes   RD..~ attrs
-      let result = fmap (S.readMay . T.unpack) $ RD._textInput_value n
-          attrs  = fmap (maybe errorState (const validState)) result
-  return result
 
-ops = Map.fromList [("+", "+"), ("-", "-"), ("*", "*"), ("/", "/")]
+--- Userspace ------------------------------------------------------------------\
 
-textToOp :: (Fractional a) => T.Text -> a -> a -> a
-textToOp s = case s of
-  "-" -> (-)
-  "*" -> (*)
-  "/" -> (/)
-  _   -> (+)
+updateModel ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
+
+-- top level business logic actions
+data BLAction = Inc | Dec deriving (Show)
+data BLModel = Counter Int deriving (Show)
+
+-- the actual app
+theApp :: TheApp t m l
+theApp = do
+  -- business logic events
+  (blEvents, blSink) <- RHA.newExternalEvent
+  (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
+
+  updateModel blEvents $ \ev -> case ev of
+    Inc -> modelSink (+1)
+    Dec -> modelSink (\x -> x - 1)
+
+  modelDyn <- R.foldDyn (\op (Counter prev) -> Counter (op prev)) (Counter 0) modelEvents
+
+  -- dynamic value of rendered virtual ui
+  let dynView = fmap (render blSink) modelDyn
+
+  R.updated modelDyn ~> print
+
+  -- return dynamic value of ui
+  return dynView
+
+  where
+    redButton = [("style", "background-color:red; color: white; padding: 10px;")]
+
+    textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
+
+    button label attrs listeners =
+      flip VD.with listeners $
+        VD.h "button" (VD.prop attrs) [VD.text label]
+
+    panel ch = VD.h "div" (VD.prop [("style", "padding: 10px;")]) ch
+
+    render :: Sink BLAction -> BLModel -> VD.VNode l
+    render blSink (Counter c) =
+      panel [ button "-" [("style", "background-color:red; color: white; padding: " <> show c <> "px;")] [VD.On "click" (void . const (blSink Dec))]
+            , textLabel $ "<- resize buttons " <> show c <> " ->"
+            , button "+" [("style", "background-color:red; color: white; padding: " <> show c <> "px;")] [VD.On "click" (void . const (blSink Inc))]
+            ]

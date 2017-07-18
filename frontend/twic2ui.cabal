@@ -32,6 +32,7 @@ executable twic2ui
                      , text
                      , twitter-types
                      , reflex
-                     , reflex-dom
                      , safe
                      , containers
+                     , virtualdom
+                     , reflex-host
