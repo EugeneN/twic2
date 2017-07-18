@@ -8,7 +8,7 @@ packages:
 
 - location:
     git: https://github.com/EugeneN/haskell-virtualdom.git
-    commit: 46152b8a48f3908f4cb5b9d6d72bd76df67ac882
+    commit: 63d0486fbe9468eb0b1c6b0edefb1e5244dc94f2
   extra-dep: true
 # - location: '../../haskell-virtualdom'
 
