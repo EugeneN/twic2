@@ -13,6 +13,8 @@ import Control.Concurrent            (forkIO, threadDelay)
 import Control.Monad                 (void, join)
 import Control.Monad.IO.Class        (liftIO)
 
+import Data.Map.Strict               (Map)
+import qualified Data.Map.Strict     as Map
 import Data.Maybe                    (Maybe(..))
 import Data.Monoid
 import qualified Data.Text           as T
@@ -75,7 +77,7 @@ appContainer container anApp = do
 
   where
     kickstart sink val = do
-      threadDelay 10000 -- XXX FIXME
+      threadDelay 10000 -- XXX FIXME getPostBuild
       sink val
       pure ()
 
@@ -125,25 +127,26 @@ theApp = do
     AddCounter    -> modelSink (+1)
     RemoveCounter -> modelSink (\x -> if x - 1 < 0 then 0 else x - 1)
 
-  modelDyn <- R.foldDyn (\op (AppBLModel prev) -> AppBLModel (op prev)) (AppBLModel 0) modelEvents -- RC.Dynamic t AppBLModel
-
+  modelDyn <- R.foldDyn (\op (AppBLModel prev) -> AppBLModel (op prev)) (AppBLModel 0) modelEvents -- :: m (R.Dynamic t AppBLModel)
   modelDyn' :: R.Dynamic t [m (ViewDyn t l)] <- R.foldDyn makeCounters [] (R.updated modelDyn)
-  let modelDyn'' = fmap sequence modelDyn' :: R.Dynamic t (m [ViewDyn t l])
 
-  runAH <- RHA.getRunAppHost
+  let mmas = fmap toMap (R.updated modelDyn') :: R.Event t (Map Int (Maybe (m (ViewDyn t l))))
+  mmas' <- R.foldDyn (\new old -> Map.union new (Map.mapWithKey (\k _ -> Nothing) old)) mempty mmas
 
-  z <- RHA.performEvent (fmap runAH $ R.updated modelDyn'') -- RC.Event t (HostFrame t (RHA.AppInfo t), [ViewDyn t l])
-  let z' = fmap snd z :: R.Event t [ViewDyn t l]
+  as :: R.Dynamic t (Map Int (RC.Dynamic t (VD.VNode l))) <- RHA.holdKeyAppHost mempty (R.updated mmas')
 
-  zDyn <- R.holdDyn [] z'                             :: m (R.Dynamic t [ViewDyn t l])
-  let zDyn'         = fmap mconcat zDyn               :: R.Dynamic t (ViewDyn t l)
-      jDyn          = join zDyn'                      :: R.Dynamic t (VD.VNode l)
+  let as'           = fmap (fmap snd . Map.toList) as :: R.Dynamic t [ViewDyn t l]
+  let as''          = fmap mconcat as'                :: R.Dynamic t (ViewDyn t l)
+      jas           = join as''                       :: R.Dynamic t (VD.VNode l)
       ownViewDyn    = fmap (render blSink) modelDyn   :: R.Dynamic t (VD.VNode l)
-      resultViewDyn = ownViewDyn <> jDyn              :: R.Dynamic t (VD.VNode l)
+      resultViewDyn = ownViewDyn <> jas               :: R.Dynamic t (VD.VNode l)
 
   return resultViewDyn
 
   where
+    toMap :: [m (ViewDyn t l)] -> Map Int (Maybe (m (ViewDyn t l)))
+    toMap mas = Map.fromList (zip [0..] (fmap Just mas))
+
     makeCounters :: (RHA.MonadAppHost t m) => AppBLModel -> [m (RC.Dynamic t (VD.VNode l))] -> [m (RC.Dynamic t (VD.VNode l))]
     makeCounters (AppBLModel n) xs =
       let c = length xs
