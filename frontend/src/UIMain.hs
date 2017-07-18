@@ -126,7 +126,7 @@ theApp = do
 
     render :: Sink BLAction -> BLModel -> VD.VNode l
     render blSink (Counter c) =
-      panel [ button "-" [("style", "background-color:red; color: white; padding: " <> show c <> "px;")] [VD.On "click" (void . const (blSink Dec))]
-            , textLabel $ "<- resize buttons " <> show c <> " ->"
-            , button "+" [("style", "background-color:red; color: white; padding: " <> show c <> "px;")] [VD.On "click" (void . const (blSink Inc))]
+      panel [ button "-" redButton [VD.On "click" (void . const (blSink Dec))]
+            , textLabel $ show c
+            , button "+" redButton [VD.On "click" (void . const (blSink Inc))]
             ]

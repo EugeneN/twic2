@@ -8,8 +8,9 @@ packages:
 
 - location:
     git: https://github.com/EugeneN/haskell-virtualdom.git
-    commit: f38e01714f8680450c8759e85f228ac09086549c
+    commit: 46152b8a48f3908f4cb5b9d6d72bd76df67ac882
   extra-dep: true
+# - location: '../../haskell-virtualdom'
 
 - location:
     git: https://github.com/bennofs/reflex-host.git
@@ -52,7 +53,7 @@ extra-deps:
 - lens-4.15.3
 - th-abstraction-0.2.3.0
 - kan-extensions-5.0.2
-- virtualdom-0.1.0.0
+# - virtualdom-0.1.0.0
 
 ghc-options:
     "*": -DGHCJS_BROWSER
