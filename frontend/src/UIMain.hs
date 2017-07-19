@@ -122,19 +122,18 @@ theApp :: TheApp t m l
 theApp = do
   (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent
   (counterModelE :: R.Event t (Int -> Int), counterModelU) <- RHA.newExternalEvent
-  (newInstancesModelE :: R.Event t [m (ViewDyn t l)], newInstancesModelU) <- RHA.newExternalEvent -- XXX ads MonadFix to the context
 
   updateModel controllerE (\x -> return (updateCounter x) >>= counterModelU)
-  counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE :: m (R.Dynamic t AppCounterModel)
+  counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE -- :: m (R.Dynamic t AppCounterModel)
 
-  let mas = fmap makeCounters (R.updated counterModelD) :: R.Event t (Map Int (Maybe (m (ViewDyn t l))))
-  as <- RHA.holdKeyAppHost (Map.empty) mas              :: m (R.Dynamic t (Map Int (ViewDyn t l)))
+  let mas = fmap makeCounters (R.updated counterModelD)        -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l))))
+  as <- RHA.holdKeyAppHost (Map.empty) mas                     -- :: m (R.Dynamic t (Map Int (ViewDyn t l)))
 
-  let as'           = fmap Map.elems as                         :: R.Dynamic t [ViewDyn t l]
-      as''          = fmap mconcat as'                          :: R.Dynamic t (ViewDyn t l)
-      jas           = join as''                                 :: R.Dynamic t (VD.VNode l)
-      ownViewDyn    = fmap (render controllerU) counterModelD   :: R.Dynamic t (VD.VNode l)
-      resultViewDyn = ownViewDyn <> jas                         :: R.Dynamic t (VD.VNode l)
+  let as'           = fmap Map.elems as                        -- :: R.Dynamic t [ViewDyn t l]
+      as''          = fmap mconcat as'                         -- :: R.Dynamic t (ViewDyn t l)
+      jas           = join as''                                -- :: R.Dynamic t (VD.VNode l)
+      ownViewDyn    = fmap (render controllerU) counterModelD  -- :: R.Dynamic t (VD.VNode l)
+      resultViewDyn = ownViewDyn <> jas                        -- :: R.Dynamic t (VD.VNode l)
 
   return resultViewDyn
 
@@ -167,7 +166,6 @@ data CounterBLModel = Counter Int deriving (Show)
 
 counterApp :: Int -> TheApp t m l
 counterApp id_ = do
-  -- business logic events
   (blEvents, blSink) <- RHA.newExternalEvent
   (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
 
@@ -177,12 +175,10 @@ counterApp id_ = do
 
   modelDyn <- R.foldDyn (\op (Counter prev) -> Counter (op prev)) (Counter 0) modelEvents
 
-  -- dynamic value of rendered virtual ui
   let dynView = fmap (render blSink) modelDyn
 
   R.updated modelDyn ~> print
 
-  -- return dynamic value of ui
   return dynView
 
   where
