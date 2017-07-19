@@ -10,7 +10,7 @@ module Main where
 import Prelude
 import Control.Applicative           ((<*>), (<$>))
 import Control.Concurrent            (forkIO, threadDelay)
-import Control.Monad                 (void, join, sequence)
+import Control.Monad                 (void, join)
 import Control.Monad.IO.Class        (liftIO)
 import Control.Monad.Fix             (MonadFix)
 
@@ -32,7 +32,9 @@ import BL.Types                      (Tweet, Author, Entities, TweetElement)
 
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
 type AppContainer t m l c = (RHA.MonadAppHost t m, l ~ DOM.Node, c ~ Counter) => l -> TheApp t m l c -> m ()
-type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => AppContainer t m l c) -> (forall t m l c . c ~ Counter => TheApp t m l c) -> IO ()
+type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => AppContainer t m l c)
+                         -> (forall t m l c . c ~ Counter => TheApp t m l c)
+                         -> IO ()
 type TheApp t m l c       = (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), R.Dynamic t c)
 type Sink a               = a -> IO Bool
 
@@ -114,7 +116,7 @@ instance Monoid (VD.VNode l) where
 
 data AppBLAction     = AddCounter | RemoveCounter | ResetAll deriving (Show, Eq)
 data ChildAction     = Reset deriving (Show, Eq)
-data AppCounterModel = AppCounterModel Int Int -- deriving (Show)
+data AppCounterModel = AppCounterModel Int Int
 type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
 -- the actual app
@@ -125,28 +127,28 @@ theApp = do
   (childControllerE :: R.Event t ChildAction, childControllerU) <- RHA.newExternalEvent
 
   subscribeToEvent (R.ffilter onlyAddRemove controllerE) (\x -> return (updateCounter x) >>= counterModelU)
-  counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE -- :: m (R.Dynamic t AppCounterModel)
+  counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE    -- :: m (R.Dynamic t AppCounterModel)
 
   subscribeToEvent (R.ffilter (== ResetAll) controllerE) (\x -> childControllerU Reset)
 
-  let mas = fmap (makeCounters childControllerE) (R.updated counterModelD) -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
-  as <- RHA.holdKeyAppHost (Map.empty) mas                     -- :: m (R.Dynamic t (Map Int (ViewDyn t l, R.Dynamic x)))
+  let mas = fmap (makeCounters childControllerE) (R.updated counterModelD)      -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
+  as <- RHA.holdKeyAppHost (Map.empty) mas                                      -- :: m (R.Dynamic t (Map Int (ViewDyn t l, R.Dynamic x)))
 
-  let as' = fmap Map.elems as                                  -- :: R.Dynamic t [(ViewDyn t l, R.Dynamic x)]
+  let as' = fmap Map.elems as                                                   -- :: R.Dynamic t [(ViewDyn t l, R.Dynamic x)]
 
-      xs = fmap (fmap fst) as'                                 --  R.Dynamic t [ViewDyn t l]
-      ys = fmap (fmap snd) as'                                 --  R.Dynamic t [R.Dynamic x]
+      xs = fmap (fmap fst) as'                                                  --  R.Dynamic t [ViewDyn t l]
+      ys = fmap (fmap snd) as'                                                  --  R.Dynamic t [R.Dynamic x]
 
-      ys' = fmap mconcat ys                                    -- R.Dynamic t [R.Dynamic (Counter Int)]
-      jys = join ys'                                           -- R.Dynamic (Counter Int)
+      ys' = fmap mconcat ys                                                     -- R.Dynamic t [R.Dynamic (Counter Int)]
+      jys = join ys'                                                            -- R.Dynamic (Counter Int)
 
-      as'' = fmap mconcat xs                                   -- :: R.Dynamic t (ViewDyn t l)
-      jas  = join as''                                         -- :: R.Dynamic t (VD.VNode l)
+      as'' = fmap mconcat xs                                                    -- :: R.Dynamic t (ViewDyn t l)
+      jas  = join as''                                                          -- :: R.Dynamic t (VD.VNode l)
 
       allCounters = (,) <$> counterModelD <*> jys
 
-      ownViewDyn    = fmap (render controllerU) allCounters    -- :: R.Dynamic t (VD.VNode l)
-      resultViewDyn = ownViewDyn <> jas                        -- :: R.Dynamic t (VD.VNode l)
+      ownViewDyn    = fmap (render controllerU) allCounters                     -- :: R.Dynamic t (VD.VNode l)
+      resultViewDyn = ownViewDyn <> jas                                         -- :: R.Dynamic t (VD.VNode l)
 
   return (resultViewDyn, pure (Counter 0))
 
@@ -182,7 +184,6 @@ theApp = do
 
 --------------------------------------------------------------------------------
 
--- top level business logic actions
 data CounterBLAction = Inc | Dec deriving (Show)
 data Counter         = Counter Int deriving (Show)
 
@@ -196,8 +197,7 @@ counterApp id_ cmdE = do
   (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
 
   subscribeToEvent cmdE $ \ev -> case ev of
-    Reset -> modelSink (*0) >> pure ()
-    _     -> pure ()
+    Reset     -> modelSink (*0) >> pure ()
 
   subscribeToEvent blEvents $ \ev -> case ev of
     Inc -> modelSink (+1)
