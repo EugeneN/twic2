@@ -28,6 +28,7 @@ import qualified Data.VirtualDOM     as VD
 import qualified Data.VirtualDOM.DOM as DOM
 
 import BL.Types                      (Tweet, Author, Entities, TweetElement)
+import Twic2UI.Net.WebSocket         (webSocket)
 
 
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
