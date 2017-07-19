@@ -126,7 +126,7 @@ theApp = do
   (counterModelE :: R.Event t (Int -> Int), counterModelU) <- RHA.newExternalEvent
   (childControllerE :: R.Event t ChildAction, childControllerU) <- RHA.newExternalEvent
 
-  subscribeToEvent (R.ffilter onlyAddRemove controllerE) (\x -> return (updateCounter x) >>= counterModelU)
+  subscribeToEvent (R.ffilter onlyAddRemove controllerE) $ counterModelU . updateCounter
   counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE    -- :: m (R.Dynamic t AppCounterModel)
 
   subscribeToEvent (R.ffilter (== ResetAll) controllerE) (\x -> childControllerU Reset)
