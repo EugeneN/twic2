@@ -42,7 +42,7 @@ socketUrl = "ws://localhost:3000"
 --- Entry point ----------------------------------------------------------------
 
 main = hostApp appContainer theApp
--- main = hostApp appContainer (counterApp 1)
+-- main = hostApp appContainer (counterApp 1 R.never)
 
 --- Kernel ---------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ panel ch = VD.h "div"
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
                 ch
 
-updateModel ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
+subscribeToEvent ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
 
 --------------------------------------------------------------------------------
 
@@ -111,7 +111,8 @@ instance Monoid (VD.VNode l) where
   mconcat as  = VD.h "div" (VD.prop []) as
   mappend a b = VD.h "div" (VD.prop []) [a, b]
 
-data AppBLAction     = AddCounter | RemoveCounter deriving (Show)
+data AppBLAction     = AddCounter | RemoveCounter | ResetAll deriving (Show, Eq)
+data ChildAction     = Reset deriving (Show, Eq)
 data AppCounterModel = AppCounterModel Int Int -- deriving (Show)
 type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
@@ -120,11 +121,14 @@ theApp :: TheApp t m l Counter
 theApp = do
   (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent
   (counterModelE :: R.Event t (Int -> Int), counterModelU) <- RHA.newExternalEvent
+  (childControllerE :: R.Event t ChildAction, childControllerU) <- RHA.newExternalEvent
 
-  updateModel controllerE (\x -> return (updateCounter x) >>= counterModelU)
+  subscribeToEvent (R.ffilter onlyAddRemove controllerE) (\x -> return (updateCounter x) >>= counterModelU)
   counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE -- :: m (R.Dynamic t AppCounterModel)
 
-  let mas = fmap makeCounters (R.updated counterModelD)        -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
+  subscribeToEvent (R.ffilter (== ResetAll) controllerE) (\x -> childControllerU Reset)
+
+  let mas = fmap (makeCounters childControllerE) (R.updated counterModelD) -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
   as <- RHA.holdKeyAppHost (Map.empty) mas                     -- :: m (R.Dynamic t (Map Int (ViewDyn t l, R.Dynamic x)))
 
   let as' = fmap Map.elems as                                  -- :: R.Dynamic t [(ViewDyn t l, R.Dynamic x)]
@@ -146,25 +150,33 @@ theApp = do
   return (resultViewDyn, pure (Counter 0))
 
   where
+    onlyAddRemove AddCounter    = True
+    onlyAddRemove RemoveCounter = True
+    onlyAddRemove _             = False
+
     updateCounter AddCounter    = (+1)
     updateCounter RemoveCounter = (\x -> if x - 1 < 0 then 0 else x - 1)
+    updateCounter _             = (+0)
 
     foldCounter :: (Int -> Int) -> AppCounterModel -> AppCounterModel
     foldCounter op (AppCounterModel x _) = AppCounterModel (op x) x
 
     makeCounters :: (RHA.MonadAppHost t m, Counter ~ c) =>
-                    AppCounterModel -> (Map Int (Maybe (m (ViewDyn t l, R.Dynamic t c))))
-    makeCounters (AppCounterModel new old) =
+                    R.Event t ChildAction -> AppCounterModel -> (Map Int (Maybe (m (ViewDyn t l, R.Dynamic t c))))
+    makeCounters childControllerE (AppCounterModel new old) =
       if new >= old
-        then Map.singleton new (Just $ counterApp new)
+        then Map.singleton new (Just $ counterApp new childControllerE)
         else Map.singleton old Nothing
 
     render :: Sink AppBLAction -> (AppCounterModel, Counter) -> VD.VNode l
     render controllerU (AppCounterModel new old, Counter total) =
       panel [ panel [ button "-" greenButton [VD.On "click" (void . const (controllerU RemoveCounter))]
                     , textLabel $ "Counters: " <> show new <> " (was: " <> show old <> ")"
-                    , button "+" greenButton [VD.On "click" (void . const (controllerU AddCounter))]]
-            , panel [ textLabel $ "Total counters sum: " <> show total ]
+                    , button "+" greenButton [VD.On "click" (void . const (controllerU AddCounter))]
+                    ]
+            , panel [ textLabel $ "Total counters sum: " <> show total
+                    , button "Reset all" redButton [VD.On "click" (void . const (controllerU ResetAll))]
+                    ]
             ]
 
 --------------------------------------------------------------------------------
@@ -177,20 +189,21 @@ instance Monoid Counter where
   mempty = Counter 0
   mappend (Counter a) (Counter b) = Counter (a + b)
 
-counterApp :: Int -> TheApp t m l Counter
-counterApp id_       = do
+counterApp :: Int -> R.Event t ChildAction -> TheApp t m l Counter
+counterApp id_ cmdE = do
   (blEvents, blSink) <- RHA.newExternalEvent
   (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
 
-  updateModel blEvents $ \ev -> case ev of
+  subscribeToEvent cmdE $ \ev -> case ev of
+    Reset -> modelSink (*0) >> pure ()
+    _     -> pure ()
+
+  subscribeToEvent blEvents $ \ev -> case ev of
     Inc -> modelSink (+1)
     Dec -> modelSink (\x -> x - 1)
 
   modelDyn <- R.foldDyn (\op (Counter prev) -> Counter (op prev)) (Counter 0) modelEvents
-
-  let dynView        = fmap (render blSink) modelDyn
-
-  R.updated modelDyn ~> print
+  let dynView = fmap (render blSink) modelDyn
 
   return (dynView, modelDyn)
 
