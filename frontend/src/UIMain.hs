@@ -99,7 +99,10 @@ button label attrs listeners =
   flip VD.with listeners $
     VD.h "button" (VD.prop attrs) [VD.text label]
 
-panel ch = VD.h "div" (VD.prop [("style", "padding: 10px;")]) ch
+panel ch = VD.h "div"
+                (VD.prop [ ("class", "panel")
+                         , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
+                ch
 
 updateModel ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
 
@@ -140,7 +143,7 @@ theApp = do
     updateCounter RemoveCounter = (\x -> if x - 1 < 0 then 0 else x - 1)
 
     foldCounter :: (Int -> Int) -> AppCounterModel -> AppCounterModel
-    foldCounter op (AppCounterModel x y) = AppCounterModel (op x) x
+    foldCounter op (AppCounterModel x _) = AppCounterModel (op x) x
 
     makeCounters :: (RHA.MonadAppHost t m) => AppCounterModel
                                            -> (Map Int (Maybe (m (ViewDyn t l))))
@@ -148,7 +151,6 @@ theApp = do
       if new >= old
         then Map.singleton new (Just $ counterApp new)
         else Map.singleton old Nothing
-
 
     render :: Sink AppBLAction -> AppCounterModel -> VD.VNode l
     render controllerU (AppCounterModel new old) =
