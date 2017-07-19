@@ -90,6 +90,7 @@ appContainer container anApp = do
 
 redButton   = [("style", "background-color: red;   color: white; padding: 10px;")]
 greenButton = [("style", "background-color: green; color: white; padding: 10px;")]
+blueButton  = [("style", "background-color: blue;  color: white; padding: 10px;")]
 
 textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
 
@@ -210,7 +211,7 @@ counterApp id_ cmdE = do
   where
     render :: Sink CounterBLAction -> Counter -> VD.VNode l
     render blSink (Counter c) =
-      panel [ button "-" redButton [VD.On "click" (void . const (blSink Dec))]
+      panel [ button "-" blueButton [VD.On "click" (void . const (blSink Dec))]
             , textLabel $ "Counter #" <> show id_ <> ": " <> show c
-            , button "+" redButton [VD.On "click" (void . const (blSink Inc))]
+            , button "+" blueButton [VD.On "click" (void . const (blSink Inc))]
             ]
