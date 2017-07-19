@@ -147,7 +147,7 @@ theApp = do
     makeCounters (AppCounterModel new old) =
       if new >= old
         then Map.singleton new (Just $ counterApp new)
-        else Map.singleton new Nothing
+        else Map.singleton old Nothing
 
 
     render :: Sink AppBLAction -> AppCounterModel -> VD.VNode l
