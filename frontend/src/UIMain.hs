@@ -48,12 +48,10 @@ main = hostApp appContainer theApp
 
 hostApp :: AppHost
 hostApp appContainer anApp = do
-  -- prepare DOM for the app
   dombody     <- VD.getBody :: IO DOM.Node
   containerEl <- (VD.createElement VD.domAPI) "div"
   (VD.appendChild VD.domAPI) containerEl dombody
 
-  -- run the app
   R.runSpiderHost $ RHA.hostApp (appContainer containerEl anApp)
 
 
@@ -129,7 +127,7 @@ theApp = do
   let mas = fmap makeCounters (R.updated counterModelD)        -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
   as <- RHA.holdKeyAppHost (Map.empty) mas                     -- :: m (R.Dynamic t (Map Int (ViewDyn t l, R.Dynamic x)))
 
-  let as'           = fmap Map.elems as                        -- :: R.Dynamic t [(ViewDyn t l, R.Dynamic x)]
+  let as' = fmap Map.elems as                                  -- :: R.Dynamic t [(ViewDyn t l, R.Dynamic x)]
 
       xs = fmap (fmap fst) as'                                 --  R.Dynamic t [ViewDyn t l]
       ys = fmap (fmap snd) as'                                 --  R.Dynamic t [R.Dynamic x]
@@ -137,15 +135,13 @@ theApp = do
       ys' = fmap mconcat ys                                    -- R.Dynamic t [R.Dynamic (Counter Int)]
       jys = join ys'                                           -- R.Dynamic (Counter Int)
 
-      as''          = fmap mconcat xs                          -- :: R.Dynamic t (ViewDyn t l)
-      jas           = join as''                                -- :: R.Dynamic t (VD.VNode l)
+      as'' = fmap mconcat xs                                   -- :: R.Dynamic t (ViewDyn t l)
+      jas  = join as''                                         -- :: R.Dynamic t (VD.VNode l)
 
       allCounters = (,) <$> counterModelD <*> jys
 
-      ownViewDyn    = fmap (render controllerU) allCounters  -- :: R.Dynamic t (VD.VNode l)
+      ownViewDyn    = fmap (render controllerU) allCounters    -- :: R.Dynamic t (VD.VNode l)
       resultViewDyn = ownViewDyn <> jas                        -- :: R.Dynamic t (VD.VNode l)
-
-  -- R.updated jys ~> print
 
   return (resultViewDyn, pure (Counter 0))
 
@@ -156,8 +152,8 @@ theApp = do
     foldCounter :: (Int -> Int) -> AppCounterModel -> AppCounterModel
     foldCounter op (AppCounterModel x _) = AppCounterModel (op x) x
 
-    makeCounters :: (RHA.MonadAppHost t m, Counter ~ c) => AppCounterModel
-                                           -> (Map Int (Maybe (m (ViewDyn t l, R.Dynamic t c))))
+    makeCounters :: (RHA.MonadAppHost t m, Counter ~ c) =>
+                    AppCounterModel -> (Map Int (Maybe (m (ViewDyn t l, R.Dynamic t c))))
     makeCounters (AppCounterModel new old) =
       if new >= old
         then Map.singleton new (Just $ counterApp new)
