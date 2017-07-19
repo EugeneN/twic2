@@ -12,6 +12,7 @@ import Control.Applicative           ((<*>), (<$>))
 import Control.Concurrent            (forkIO, threadDelay)
 import Control.Monad                 (void, join, sequence)
 import Control.Monad.IO.Class        (liftIO)
+import Control.Monad.Fix             (MonadFix)
 
 import Data.Map.Strict               (Map)
 import qualified Data.Map.Strict     as Map
@@ -32,7 +33,7 @@ import BL.Types                      (Tweet, Author, Entities, TweetElement)
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
 type AppContainer t m l = (RHA.MonadAppHost t m, l ~ DOM.Node) => l -> TheApp t m l -> m ()
 type AppHost            = (forall t m l . l ~ DOM.Node => AppContainer t m l) -> (forall t m l . TheApp t m l) -> IO ()
-type TheApp t m l       = (RHA.MonadAppHost t m) => m (R.Dynamic t (VD.VNode l))
+type TheApp t m l       = (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l))
 type Sink a             = a -> IO Bool
 
 socketUrl = "ws://localhost:3000"
@@ -109,53 +110,51 @@ instance Monoid (VD.VNode l) where
   mconcat as  = VD.h "div" (VD.prop []) as
   mappend a b = VD.h "div" (VD.prop []) [a, b]
 
-data AppBLAction = AddCounter | RemoveCounter deriving (Show)
-data AppBLModel = AppBLModel  Int -- deriving (Show)
-data ViewModel t l = ViewModel [R.Dynamic t (VD.VNode l)]
-
-type ViewDyn t l = R.Dynamic t (VD.VNode l)
-
--- performEvent :: MonadAppHost t m => Event t (HostFrame t a) -> m (Event t a)
+data AppBLAction     = AddCounter | RemoveCounter deriving (Show)
+data AppCounterModel = AppCounterModel Int Int -- deriving (Show)
+type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
 -- the actual app
 theApp :: TheApp t m l
 theApp = do
-  (blEvents :: R.Event t AppBLAction,     blSink)    <- RHA.newExternalEvent
-  (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
+  (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent
+  (counterModelE :: R.Event t (Int -> Int), counterModelU) <- RHA.newExternalEvent
+  (newInstancesModelE :: R.Event t [m (ViewDyn t l)], newInstancesModelU) <- RHA.newExternalEvent -- XXX ads MonadFix to the context
 
-  updateModel blEvents $ \ev -> case ev of
-    AddCounter    -> modelSink (+1)
-    RemoveCounter -> modelSink (\x -> if x - 1 < 0 then 0 else x - 1)
+  updateModel controllerE (\x -> return (updateCounter x) >>= counterModelU)
+  counterModelD <- R.foldDyn foldCounter (AppCounterModel 0 0) counterModelE :: m (R.Dynamic t AppCounterModel)
 
-  modelDyn <- R.foldDyn (\op (AppBLModel prev) -> AppBLModel (op prev)) (AppBLModel 0) modelEvents -- :: m (R.Dynamic t AppBLModel)
-  modelDyn' :: R.Dynamic t [m (ViewDyn t l)] <- R.foldDyn makeCounters [] (R.updated modelDyn)
-  let modelDyn'' = fmap sequence modelDyn' :: R.Dynamic t (m [ViewDyn t l])
+  let mas = fmap makeCounters (R.updated counterModelD) :: R.Event t (Map Int (Maybe (m (ViewDyn t l))))
+  as <- RHA.holdKeyAppHost (Map.empty) mas              :: m (R.Dynamic t (Map Int (ViewDyn t l)))
 
-  as' :: R.Dynamic t [ViewDyn t l] <- RHA.holdAppHost (pure []) (R.updated modelDyn'')
-
-  let as''          = fmap mconcat as'                :: R.Dynamic t (ViewDyn t l)
-      jas           = join as''                       :: R.Dynamic t (VD.VNode l)
-      ownViewDyn    = fmap (render blSink) modelDyn   :: R.Dynamic t (VD.VNode l)
-      resultViewDyn = ownViewDyn <> jas               :: R.Dynamic t (VD.VNode l)
+  let as'           = fmap Map.elems as                         :: R.Dynamic t [ViewDyn t l]
+      as''          = fmap mconcat as'                          :: R.Dynamic t (ViewDyn t l)
+      jas           = join as''                                 :: R.Dynamic t (VD.VNode l)
+      ownViewDyn    = fmap (render controllerU) counterModelD   :: R.Dynamic t (VD.VNode l)
+      resultViewDyn = ownViewDyn <> jas                         :: R.Dynamic t (VD.VNode l)
 
   return resultViewDyn
 
   where
-    toMap :: [m (ViewDyn t l)] -> Map Int (Maybe (m (ViewDyn t l)))
-    toMap mas = Map.fromList (zip [0..] (fmap Just mas))
+    updateCounter AddCounter    = (+1)
+    updateCounter RemoveCounter = (\x -> if x - 1 < 0 then 0 else x - 1)
 
-    makeCounters :: (RHA.MonadAppHost t m) => AppBLModel -> [m (RC.Dynamic t (VD.VNode l))] -> [m (RC.Dynamic t (VD.VNode l))]
-    makeCounters (AppBLModel n) xs =
-      let c = length xs
-      in if n > c
-        then xs <> [counterApp n]
-        else take n xs
+    foldCounter :: (Int -> Int) -> AppCounterModel -> AppCounterModel
+    foldCounter op (AppCounterModel x y) = AppCounterModel (op x) x
 
-    render :: Sink AppBLAction -> AppBLModel -> VD.VNode l
-    render blSink (AppBLModel c) =
-      panel [ button "-" greenButton [VD.On "click" (void . const (blSink RemoveCounter))]
-            , textLabel $ "Counters: " <> show c
-            , button "+" greenButton [VD.On "click" (void . const (blSink AddCounter))]
+    makeCounters :: (RHA.MonadAppHost t m) => AppCounterModel
+                                           -> (Map Int (Maybe (m (ViewDyn t l))))
+    makeCounters (AppCounterModel new old) =
+      if new >= old
+        then Map.singleton new (Just $ counterApp new)
+        else Map.singleton new Nothing
+
+
+    render :: Sink AppBLAction -> AppCounterModel -> VD.VNode l
+    render controllerU (AppCounterModel new old) =
+      panel [ button "-" greenButton [VD.On "click" (void . const (controllerU RemoveCounter))]
+            , textLabel $ "Counters: " <> show new <> " (was: " <> show old <> ")"
+            , button "+" greenButton [VD.On "click" (void . const (controllerU AddCounter))]
             ]
 
 --------------------------------------------------------------------------------
