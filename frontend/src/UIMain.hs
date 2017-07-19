@@ -131,16 +131,8 @@ theApp = do
   modelDyn' :: R.Dynamic t [m (ViewDyn t l)] <- R.foldDyn makeCounters [] (R.updated modelDyn)
   let modelDyn'' = fmap sequence modelDyn' :: R.Dynamic t (m [ViewDyn t l])
 
-  -- let mmas = fmap toMap (R.updated modelDyn') :: R.Event t (Map Int (Maybe (m (ViewDyn t l))))
-  -- mmas' <- R.foldDyn (\new old -> Map.union new (Map.mapWithKey (\k _ -> Nothing) old)) mempty mmas
-
-  -- holdAppHost ::  MonadAppHost t m => m a -> Event t (m a) -> m (Dynamic t a)
-
   as' :: R.Dynamic t [ViewDyn t l] <- RHA.holdAppHost (pure []) (R.updated modelDyn'')
 
-  -- as :: R.Dynamic t (Map Int (RC.Dynamic t (VD.VNode l))) <- RHA.holdKeyAppHost mempty (R.updated mmas')
-
-  -- let as'           = fmap (fmap snd . Map.toList) as :: R.Dynamic t [ViewDyn t l]
   let as''          = fmap mconcat as'                :: R.Dynamic t (ViewDyn t l)
       jas           = join as''                       :: R.Dynamic t (VD.VNode l)
       ownViewDyn    = fmap (render blSink) modelDyn   :: R.Dynamic t (VD.VNode l)
