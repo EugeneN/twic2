@@ -27,6 +27,10 @@ import qualified Reflex.Host.App     as RHA
 import qualified Data.VirtualDOM     as VD
 import qualified Data.VirtualDOM.DOM as DOM
 
+import qualified JavaScript.Web.WebSocket as WS
+import qualified JavaScript.Web.MessageEvent as ME
+import qualified Data.JSString      as JSS
+
 import BL.Types                      (Tweet, Author, Entities, TweetElement)
 
 
@@ -38,8 +42,8 @@ type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => App
 type TheApp t m l c       = (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), R.Dynamic t c)
 type Sink a               = a -> IO Bool
 
-socketUrl = "ws://localhost:3000"
--- socketUrl = "ws://echo.websocket.org"
+-- socketUrl = "ws://localhost:3000"
+socketUrl = "ws://echo.websocket.org"
 
 --- Entry point ----------------------------------------------------------------
 
@@ -74,14 +78,9 @@ appContainer container anApp = do
   (R.updated vdomDyn) ~> vdomSink
   vdomEvents ~> draw
 
-  liftIO . void . forkIO  $ kickstart vdomSink initialVDom
+  whenReady $ const $ vdomSink initialVDom
 
   where
-    kickstart sink val = do
-      threadDelay 10000 -- XXX FIXME getPostBuild
-      sink val
-      pure ()
-
     draw :: (l ~ DOM.Node) => (Maybe (VD.VNode l), Maybe (VD.VNode l)) -> IO ()
     draw (newVdom, oldVdom) = void . forkIO $ do
       print $ "draw " <> show newVdom
@@ -106,6 +105,11 @@ panel ch = VD.h "div"
                 ch
 
 subscribeToEvent ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
+subscribeToEvent' ev f = RHA.performEvent_ $ fmap f ev
+
+whenReady f = do
+  ready <- RHA.getPostBuild
+  subscribeToEvent ready f
 
 --------------------------------------------------------------------------------
 
@@ -118,6 +122,14 @@ data AppBLAction     = AddCounter | RemoveCounter | ResetAll deriving (Show, Eq)
 data ChildAction     = Reset deriving (Show, Eq)
 data AppCounterModel = AppCounterModel Int Int
 type ViewDyn t l     = R.Dynamic t (VD.VNode l)
+
+data WSData = WSData String deriving (Show)
+
+data WSInterface t m = WSInterface
+  { ws_send    :: WSData -> m ()
+  , ws_rcve    :: R.Event t WSData
+  , ws_send_IO :: WSData -> IO ()
+  }
 
 -- the actual app
 theApp :: TheApp t m l Counter
@@ -150,9 +162,37 @@ theApp = do
       ownViewDyn    = fmap (render controllerU) allCounters                     -- :: R.Dynamic t (VD.VNode l)
       resultViewDyn = ownViewDyn <> jas                                         -- :: R.Dynamic t (VD.VNode l)
 
+  ws <- getWebsocket socketUrl
+  ws_rcve ws ~> (print . mappend "Received from WS: " . show)
+  whenReady $ \_ -> ws_send_IO ws (WSData "hello ws")
+
   return (resultViewDyn, pure (Counter 0))
 
   where
+    decodeMsgEvent :: ME.MessageEvent -> WSData
+    decodeMsgEvent m =
+      case ME.getData m of
+        ME.StringData s       -> WSData $ JSS.unpack s
+        ME.BlobData _         -> WSData "BlobData not supported yet"
+        ME.ArrayBufferData _  -> WSData "ArrayBufferData not supported yet"
+
+    getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t m)
+    getWebsocket socketUrl = do
+      (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
+      (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
+
+      let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
+                                      (Just $ \ev -> print "ws closed"  )
+                                      (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
+
+      ws <- liftIO $ WS.connect wscfg
+
+      subscribeToEvent' wsSendE $ \(WSData s) -> liftIO $ WS.send (JSS.pack s) ws
+
+      return $ WSInterface { ws_rcve    = wsRcvE
+                           , ws_send    = \x -> liftIO $ wsSendU x >> pure ()
+                           , ws_send_IO = \x -> wsSendU x >> pure () }
+
     onlyAddRemove AddCounter    = True
     onlyAddRemove RemoveCounter = True
     onlyAddRemove _             = False
