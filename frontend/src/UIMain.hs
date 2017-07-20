@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE CPP                   #-}
 
 module Main where
 
@@ -31,6 +32,7 @@ import qualified Data.VirtualDOM.DOM as DOM
 import qualified JavaScript.Web.WebSocket as WS
 import qualified JavaScript.Web.MessageEvent as ME
 import qualified Data.JSString      as JSS
+import           GHCJS.Prim         (JSVal)
 
 import BL.Types                      (Tweet, Author, Entities, TweetElement)
 
@@ -101,6 +103,13 @@ button label attrs listeners =
   flip VD.with listeners $
     VD.h "button" (VD.prop attrs) [VD.text label]
 
+foreign import javascript unsafe "$1.target.value"
+  jsval :: JSVal -> JSS.JSString
+
+stringInput u =
+  flip VD.with [VD.On "change" (\ev -> u . JSS.unpack . jsval $ ev)] $
+    VD.h "input" (VD.prop [("type", "text")]) []
+
 panel ch = VD.h "div"
                 (VD.prop [ ("class", "panel")
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
@@ -165,27 +174,32 @@ testWS :: TheApp t m l Counter
 testWS = do
   (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t WSData, modelU) <- RHA.newExternalEvent
+  (inputE :: R.Event t String, inputU) <- RHA.newExternalEvent
 
+  inputD <- R.holdDyn "" inputE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   (wsi, wsready) <- getWebsocket socketUrl
   wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
-  ws_rcve wsi ~> (modelU)
+  ws_rcve wsi ~> modelU
 
   subscribeToEvent wsReady $ \_ -> ws_send wsi (WSData "hello ws")
 
-  subscribeToEvent (R.ffilter (== TestWS) controllerE) $ \x -> ws_send wsi (WSData "Test WS")
+  subscribeToEvent' (R.ffilter (== TestWS) controllerE) $ \x -> do
+    inputVal <- R.sample $ R.current inputD
+    void . liftIO $ ws_send wsi (WSData inputVal)
 
-  let ownViewDyn = fmap (render controllerU) modelD
+  let ownViewDyn = fmap (render controllerU inputU) modelD
 
   return (ownViewDyn, pure (Counter 0))
 
   where
-    render :: Sink TestWSBLAction -> [WSData] -> VD.VNode l
-    render controllerU ws =
-      panel [ block [button "Test WS" redButton [VD.On "click" (void . const (controllerU TestWS))]]
+    render :: Sink TestWSBLAction -> Sink String -> [WSData] -> VD.VNode l
+    render controllerU inputU ws =
+      panel [ block [stringInput (\x -> inputU x >> pure ())]
+            , block [button "Test WS" redButton [VD.On "click" (void . const (controllerU TestWS))]]
             , panel (fmap (block . (: []) . textLabel . show) ws)
             ]
 

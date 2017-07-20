@@ -35,3 +35,4 @@ executable twic2ui
                      , containers
                      , virtualdom
                      , reflex-host
+                     , ghcjs-prim
