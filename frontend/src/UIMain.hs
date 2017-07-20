@@ -94,6 +94,7 @@ redButton   = [("style", "background-color: red;   color: white; padding: 10px;"
 greenButton = [("style", "background-color: green; color: white; padding: 10px;")]
 blueButton  = [("style", "background-color: blue;  color: white; padding: 10px;")]
 
+block xs = VD.h "div" (VD.prop [("style", "display: block;")]) xs
 textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
 
 button label attrs listeners =
@@ -105,12 +106,88 @@ panel ch = VD.h "div"
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
                 ch
 
+columns cs =
+  VD.h "div" (VD.prop [("style", "display: flex; flex-direction: row; flex-wrap: nowrap ; justify-content: flex-start; align-items: stretch;")])
+       (fmap (\(x, pctWidth) -> VD.h "div" (VD.prop [("style", "align-self: stretch; flex-basis: " <> show pctWidth <> "%;")]) [x]) cs)
+
 subscribeToEvent ev f = RHA.performEvent_ $ fmap (liftIO . void . f) ev
 subscribeToEvent' ev f = RHA.performEvent_ $ fmap f ev
 
 whenReady f = do
   ready <- RHA.getPostBuild
   subscribeToEvent ready f
+
+getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
+getWebsocket socketUrl = do
+  (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
+  -- (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
+  (wsE :: R.Event t WS.WebSocket, wsU) <- RHA.newExternalEvent
+
+  let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
+                                  (Just $ \ev -> print "ws closed"  )
+                                  (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
+
+  liftIO . void . forkIO $ do
+    ws <- liftIO $ WS.connect wscfg
+    wsU ws
+    pure ()
+
+  x <- liftIO $ newEmptyMVar
+  wsD' <- R.foldDyn (\x _ -> Just x) Nothing wsE
+  subscribeToEvent (R.updated wsD') $ \y -> putMVar x y
+
+  let wssend = \payload -> do
+                  wsh <- tryReadMVar x
+                  case wsh of
+                    Nothing          -> return $ Left "ws not ready"
+                    Just Nothing     -> return $ Left "ws not ready"
+                    Just (Just wsh') -> WS.send (encodeMsg payload) wsh' >> pure (Right True)
+
+  let wsi = WSInterface { ws_rcve = wsRcvE
+                        , ws_send = wssend }
+
+  return (wsi, wsD')
+
+encodeMsg :: WSData -> JSS.JSString
+encodeMsg (WSData s) = JSS.pack s
+
+decodeMsgEvent :: ME.MessageEvent -> WSData
+decodeMsgEvent m =
+  case ME.getData m of
+    ME.StringData s       -> WSData $ JSS.unpack s
+    ME.BlobData _         -> WSData "BlobData not supported yet"
+    ME.ArrayBufferData _  -> WSData "ArrayBufferData not supported yet"
+--------------------------------------------------------------------------------
+
+data TestWSBLAction = TestWS deriving (Show, Eq)
+
+testWS :: TheApp t m l Counter
+testWS = do
+  (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
+  (modelE :: R.Event t WSData, modelU) <- RHA.newExternalEvent
+
+  modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
+
+  (wsi, wsready) <- getWebsocket socketUrl
+  wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
+
+  ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
+  ws_rcve wsi ~> (modelU)
+
+  subscribeToEvent wsReady $ \_ -> ws_send wsi (WSData "hello ws")
+
+  subscribeToEvent (R.ffilter (== TestWS) controllerE) $ \x -> ws_send wsi (WSData "Test WS")
+
+  let ownViewDyn = fmap (render controllerU) modelD
+
+  return (ownViewDyn, pure (Counter 0))
+
+  where
+    render :: Sink TestWSBLAction -> [WSData] -> VD.VNode l
+    render controllerU ws =
+      panel [ block [button "Test WS" redButton [VD.On "click" (void . const (controllerU TestWS))]]
+            , panel (fmap (block . (: []) . textLabel . show) ws)
+            ]
 
 --------------------------------------------------------------------------------
 
@@ -144,6 +221,8 @@ theApp = do
 
   subscribeToEvent (R.ffilter (== ResetAll) controllerE) (\x -> childControllerU Reset)
 
+  (testWSViewD, _) <- testWS
+
   let mas = fmap (makeCounters childControllerE) (R.updated counterModelD)      -- :: R.Event t (Map Int (Maybe (m (ViewDyn t l, R.Dynamic x))))
   as <- RHA.holdKeyAppHost (Map.empty) mas                                      -- :: m (R.Dynamic t (Map Int (ViewDyn t l, R.Dynamic x)))
 
@@ -161,60 +240,13 @@ theApp = do
       allCounters = (,) <$> counterModelD <*> jys
 
       ownViewDyn    = fmap (render controllerU) allCounters                     -- :: R.Dynamic t (VD.VNode l)
-      resultViewDyn = ownViewDyn <> jas                                         -- :: R.Dynamic t (VD.VNode l)
-
-  (wsi, wsready) <- getWebsocket socketUrl
-  wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
-
-  ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
-
-  subscribeToEvent wsReady $ \_ ->
-    ws_send wsi (WSData "hello ws")
+      resultViewDyn = layout <$> ownViewDyn <*> testWSViewD <*> jas             -- :: R.Dynamic t (VD.VNode l)
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    encodeMsg :: WSData -> JSS.JSString
-    encodeMsg (WSData s) = JSS.pack s
-
-    decodeMsgEvent :: ME.MessageEvent -> WSData
-    decodeMsgEvent m =
-      case ME.getData m of
-        ME.StringData s       -> WSData $ JSS.unpack s
-        ME.BlobData _         -> WSData "BlobData not supported yet"
-        ME.ArrayBufferData _  -> WSData "ArrayBufferData not supported yet"
-
-    getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
-    getWebsocket socketUrl = do
-      (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
-      -- (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
-      (wsE :: R.Event t WS.WebSocket, wsU) <- RHA.newExternalEvent
-
-      let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
-                                      (Just $ \ev -> print "ws closed"  )
-                                      (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
-
-      liftIO . void . forkIO $ do
-        ws <- liftIO $ WS.connect wscfg
-        wsU ws
-        pure ()
-
-      x <- liftIO $ newEmptyMVar
-      wsD' <- R.foldDyn (\x _ -> Just x) Nothing wsE
-      subscribeToEvent (R.updated wsD') $ \y -> putMVar x y
-
-      let wssend = \payload -> do
-                      wsh <- tryReadMVar x
-                      case wsh of
-                        Nothing          -> return $ Left "ws not ready"
-                        Just Nothing     -> return $ Left "ws not ready"
-                        Just (Just wsh') -> WS.send (encodeMsg payload) wsh' >> pure (Right True)
-
-      let wsi = WSInterface { ws_rcve = wsRcvE
-                            , ws_send = wssend }
-
-      return (wsi, wsD')
-
+    layout own testws counters =
+      columns [(testws, 20), (own <> counters, 80)]
 
     onlyAddRemove AddCounter    = True
     onlyAddRemove RemoveCounter = True
