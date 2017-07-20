@@ -10,13 +10,14 @@ module Main where
 import Prelude
 import Control.Applicative           ((<*>), (<$>))
 import Control.Concurrent            (forkIO, threadDelay)
+import Control.Concurrent.MVar       (newEmptyMVar, putMVar, tryReadMVar)
 import Control.Monad                 (void, join)
 import Control.Monad.IO.Class        (liftIO)
 import Control.Monad.Fix             (MonadFix)
 
 import Data.Map.Strict               (Map)
 import qualified Data.Map.Strict     as Map
-import Data.Maybe                    (Maybe(..))
+import Data.Maybe                    (Maybe(..), isJust, fromJust)
 import Data.Monoid
 import qualified Data.Text           as T
 
@@ -125,10 +126,10 @@ type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
 data WSData = WSData String deriving (Show)
 
-data WSInterface t m = WSInterface
-  { ws_send    :: WSData -> m ()
+data WSInterface t = WSInterface
+  { ws_send    :: WSData -> IO (Either String Bool)
   , ws_rcve    :: R.Event t WSData
-  , ws_send_IO :: WSData -> IO ()
+  -- , ws_send_IO :: WSData -> IO ()
   }
 
 -- the actual app
@@ -162,13 +163,20 @@ theApp = do
       ownViewDyn    = fmap (render controllerU) allCounters                     -- :: R.Dynamic t (VD.VNode l)
       resultViewDyn = ownViewDyn <> jas                                         -- :: R.Dynamic t (VD.VNode l)
 
-  ws <- getWebsocket socketUrl
-  ws_rcve ws ~> (print . mappend "Received from WS: " . show)
-  whenReady $ \_ -> ws_send_IO ws (WSData "hello ws")
+  (wsi, wsready) <- getWebsocket socketUrl
+  wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
+
+  ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
+
+  subscribeToEvent wsReady $ \_ ->
+    ws_send wsi (WSData "hello ws")
 
   return (resultViewDyn, pure (Counter 0))
 
   where
+    encodeMsg :: WSData -> JSS.JSString
+    encodeMsg (WSData s) = JSS.pack s
+
     decodeMsgEvent :: ME.MessageEvent -> WSData
     decodeMsgEvent m =
       case ME.getData m of
@@ -176,22 +184,37 @@ theApp = do
         ME.BlobData _         -> WSData "BlobData not supported yet"
         ME.ArrayBufferData _  -> WSData "ArrayBufferData not supported yet"
 
-    getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t m)
+    getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
     getWebsocket socketUrl = do
       (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
-      (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
+      -- (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
+      (wsE :: R.Event t WS.WebSocket, wsU) <- RHA.newExternalEvent
 
       let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
                                       (Just $ \ev -> print "ws closed"  )
                                       (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
 
-      ws <- liftIO $ WS.connect wscfg
+      liftIO . void . forkIO $ do
+        ws <- liftIO $ WS.connect wscfg
+        wsU ws
+        pure ()
 
-      subscribeToEvent' wsSendE $ \(WSData s) -> liftIO $ WS.send (JSS.pack s) ws
+      x <- liftIO $ newEmptyMVar
+      wsD' <- R.foldDyn (\x _ -> Just x) Nothing wsE
+      subscribeToEvent (R.updated wsD') $ \y -> putMVar x y
 
-      return $ WSInterface { ws_rcve    = wsRcvE
-                           , ws_send    = \x -> liftIO $ wsSendU x >> pure ()
-                           , ws_send_IO = \x -> wsSendU x >> pure () }
+      let wssend = \payload -> do
+                      wsh <- tryReadMVar x
+                      case wsh of
+                        Nothing          -> return $ Left "ws not ready"
+                        Just Nothing     -> return $ Left "ws not ready"
+                        Just (Just wsh') -> WS.send (encodeMsg payload) wsh' >> pure (Right True)
+
+      let wsi = WSInterface { ws_rcve = wsRcvE
+                            , ws_send = wssend }
+
+      return (wsi, wsD')
+
 
     onlyAddRemove AddCounter    = True
     onlyAddRemove RemoveCounter = True
