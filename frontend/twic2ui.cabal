@@ -14,12 +14,6 @@ cabal-version:       >=1.10
 
 executable twic2ui
   other-modules:       BL.Types
-                     , Twic2UI.Net.WebSocket.Foreign
-                     , Twic2UI.Net.WebSocket
-                     , Foreign.JavaScript.Utils
-                     , Foreign.JavaScript.TH
-                     , Foreign.JavaScript.Orphans
-
 
   main-is:             UIMain.hs
 
@@ -41,16 +35,3 @@ executable twic2ui
                      , containers
                      , virtualdom
                      , reflex-host
-                     , mtl
-                     , bifunctors
-                     , ghcjs-dom-jsffi
-                     , jsaddle
-                     , stm
-                     , lens
-                     , data-default
-                     , hashable
-                     , zenc
-                     , exception-transformers
-                     , primitive
-                     , ref-tf
-                     , monad-control
