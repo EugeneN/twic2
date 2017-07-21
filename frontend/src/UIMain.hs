@@ -108,7 +108,7 @@ foreign import javascript unsafe "$1.target.value"
 
 stringInput u =
   flip VD.with [VD.On "change" (\ev -> u . JSS.unpack . jsval $ ev)] $
-    VD.h "input" (VD.prop [("type", "text")]) []
+    VD.h "input" (VD.prop [("type", "text"), ("style", "padding: 2px 5px; margin: 5px 0px;")]) []
 
 panel ch = VD.h "div"
                 (VD.prop [ ("class", "panel")
@@ -126,36 +126,41 @@ whenReady f = do
   ready <- RHA.getPostBuild
   subscribeToEvent ready f
 
-getWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
-getWebsocket socketUrl = do
+setupWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
+setupWebsocket socketUrl = do
   (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
-  -- (wsSendE :: R.Event t WSData, wsSendU) <- RHA.newExternalEvent
-  (wsE :: R.Event t WS.WebSocket, wsU) <- RHA.newExternalEvent
-
-  let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
-                                  (Just $ \ev -> print "ws closed"  )
-                                  (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
-
-  liftIO . void . forkIO $ do
-    ws <- liftIO $ WS.connect wscfg
-    wsU ws
-    pure ()
+  (wsE :: R.Event t (Maybe WS.WebSocket), wsSink) <- RHA.newExternalEvent
 
   x <- liftIO $ newEmptyMVar
-  wsD' <- R.foldDyn (\x _ -> Just x) Nothing wsE
-  subscribeToEvent (R.updated wsD') $ \y -> putMVar x y
+
+  let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
+                                  (Just $ \ev -> putMVar x Nothing >> wsSink Nothing >> print "ws closed"  )
+                                  (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
+
+  liftIO . void $ connectWS wscfg x wsSink 0
+
+  wsD' <- R.holdDyn Nothing wsE
+  subscribeToEvent' (R.ffilter (not . isJust) wsE) $
+    const . liftIO . void $ connectWS wscfg x wsSink 1000000
 
   let wssend = \payload -> do
                   wsh <- tryReadMVar x
                   case wsh of
-                    Nothing          -> return $ Left "ws not ready"
-                    Just Nothing     -> return $ Left "ws not ready"
                     Just (Just wsh') -> WS.send (encodeMsg payload) wsh' >> pure (Right True)
+                    otherwise        -> return $ Left "ws not ready"
 
   let wsi = WSInterface { ws_rcve = wsRcvE
                         , ws_send = wssend }
 
   return (wsi, wsD')
+
+connectWS wscfg x wsSink delay =
+  forkIO $ void $ do
+    print $ "(re)connecting wensocket in " <> show delay <> "ns"
+    threadDelay delay
+    ws <- WS.connect wscfg
+    putMVar x $ Just ws
+    wsSink $ Just ws
 
 encodeMsg :: WSData -> JSS.JSString
 encodeMsg (WSData s) = JSS.pack s
@@ -179,7 +184,7 @@ testWS = do
   inputD <- R.holdDyn "" inputE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
-  (wsi, wsready) <- getWebsocket socketUrl
+  (wsi, wsready) <- setupWebsocket socketUrl
   wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
