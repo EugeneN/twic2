@@ -112,13 +112,13 @@ data Feed = UserTimeline Url
           | HomeTimeline Url
           deriving Show
 
-data TweetElement = AtUsername String
-                  | Link String
-                  | PlainText String
-                  | Hashtag String
+data TweetElement = AtUsername Text
+                  | Link Text
+                  | PlainText Text
+                  | Hashtag Text
                   | Retweet
-                  | Spaces String
-                  | Unparsable String
+                  | Spaces Text
+                  | Unparsable Text
                   deriving (Show, Generic)
 
 data Tweet = Tweet { text       :: [TweetElement]

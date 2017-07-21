@@ -24,6 +24,7 @@ import qualified Data.Map.Strict     as Map
 import Data.Maybe                    (Maybe(..), isJust, fromJust)
 import Data.Monoid
 import qualified Data.Text           as T
+import qualified Data.Text.Encoding  as TE
 
 import qualified Reflex              as R
 import qualified Reflex.Class        as RC
@@ -35,6 +36,7 @@ import qualified Data.VirtualDOM.DOM as DOM
 import qualified JavaScript.Web.WebSocket as WS
 import qualified JavaScript.Web.MessageEvent as ME
 import qualified Data.JSString      as JSS
+import qualified Data.JSString.Text as JST
 import           GHCJS.Prim         (JSVal)
 
 import qualified BL.Types           as BL
@@ -102,7 +104,7 @@ blueButton  = [("style", "background-color: blue;  color: white; padding: 10px;"
 block xs = VD.h "div" (VD.prop [("style", "display: block;")]) xs
 textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
 errorLabel t = VD.h "span" (VD.prop [("style", "padding: 10px; color: red;")]) [VD.text t]
-inlineLabel t = VD.h "span" (VD.prop [("style", "padding: 0px;")]) [VD.text t]
+inlineLabel t = VD.h "span" (VD.prop [("style", "padding: 0px;")]) [VD.text $ T.unpack t]
 
 button label attrs listeners =
   flip VD.with listeners $
@@ -198,7 +200,7 @@ encodeWSMsg (WSCommand s) = JSS.pack s
 decodeWSMsg :: ME.MessageEvent -> Either String WSData
 decodeWSMsg m =
   case ME.getData m of
-    ME.StringData s       -> WSData <$> (A.eitherDecodeStrict . BSL8.pack . JSS.unpack $ s :: Either String BL.FeedState)
+    ME.StringData s       -> WSData <$> (A.eitherDecodeStrict . TE.encodeUtf8 . JST.textFromJSString $ s :: Either String BL.FeedState)
     ME.BlobData _         -> Left "BlobData not supported yet"
     ME.ArrayBufferData _  -> Left "ArrayBufferData not supported yet"
 --------------------------------------------------------------------------------

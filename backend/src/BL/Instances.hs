@@ -9,6 +9,7 @@ import Data.Aeson
 
 import BL.Types
 import Control.Monad
+import Data.Text (Text)
 #ifndef __GHCJS__
 import BL.Parser (parseTweet)
 #endif
@@ -145,7 +146,7 @@ instance ToJSON Author
 instance FromJSON JsonUnreadCount
 instance ToJSON JsonUnreadCount
 
-toTweetToken :: String -> String -> TweetElement
+toTweetToken :: String -> Text -> TweetElement
 toTweetToken "AtUsername"   = AtUsername
 toTweetToken "Link"         = Link
 toTweetToken "PlainText"    = PlainText
