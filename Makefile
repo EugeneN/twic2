@@ -11,7 +11,7 @@ setup:
 	cd backend  && stack setup --install-ghc --no-system-ghc
 	cd frontend && stack setup --install-ghc --no-system-ghc
 
-backend:
+backend: frontend
 	(cd backend && stack build)
 
 frontend:
@@ -27,7 +27,7 @@ backend-clean:
 frontend-clean:
 	cd frontend && stack clean
 
-run:
+run: backend
 	cd backend && stack exec twic serve
 
 atom-build-any:

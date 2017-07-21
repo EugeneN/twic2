@@ -14,6 +14,7 @@ cabal-version:       >=1.10
 
 executable twic2ui
   other-modules:       BL.Types
+                     , BL.Instances
 
   main-is:             UIMain.hs
 

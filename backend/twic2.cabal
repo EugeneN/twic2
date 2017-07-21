@@ -19,6 +19,7 @@ Executable twic
       BL.DataLayer
       BL.Parser
       BL.Types
+      BL.Instances
       BL.Worker
       Config
       UI.CLI.Cli

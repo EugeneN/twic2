@@ -16,6 +16,9 @@ import Control.Monad                 (void, join)
 import Control.Monad.IO.Class        (liftIO)
 import Control.Monad.Fix             (MonadFix)
 
+import qualified Data.Aeson          as A
+import qualified Data.ByteString.Char8 as BSL8
+import qualified Data.ByteString     as BSL
 import Data.Map.Strict               (Map)
 import qualified Data.Map.Strict     as Map
 import Data.Maybe                    (Maybe(..), isJust, fromJust)
@@ -34,7 +37,8 @@ import qualified JavaScript.Web.MessageEvent as ME
 import qualified Data.JSString      as JSS
 import           GHCJS.Prim         (JSVal)
 
-import BL.Types                      (Tweet, Author, Entities, TweetElement)
+import qualified BL.Types           as BL
+import  BL.Instances
 
 
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
@@ -45,8 +49,8 @@ type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => App
 type TheApp t m l c       = (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), R.Dynamic t c)
 type Sink a               = a -> IO Bool
 
--- socketUrl = "ws://localhost:3000"
-socketUrl = "ws://echo.websocket.org"
+socketUrl = "ws://localhost:3000"
+-- socketUrl = "ws://echo.websocket.org"
 
 --- Entry point ----------------------------------------------------------------
 
@@ -89,7 +93,6 @@ appContainer container anApp = do
       print $ "draw " <> show newVdom
       VD.patch VD.domAPI container oldVdom newVdom
 
-
 --- Userspace ------------------------------------------------------------------
 
 redButton   = [("style", "background-color: red;   color: white; padding: 10px;")]
@@ -98,6 +101,8 @@ blueButton  = [("style", "background-color: blue;  color: white; padding: 10px;"
 
 block xs = VD.h "div" (VD.prop [("style", "display: block;")]) xs
 textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
+errorLabel t = VD.h "span" (VD.prop [("style", "padding: 10px; color: red;")]) [VD.text t]
+inlineLabel t = VD.h "span" (VD.prop [("style", "padding: 0px;")]) [VD.text t]
 
 button label attrs listeners =
   flip VD.with listeners $
@@ -115,6 +120,30 @@ panel ch = VD.h "div"
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
                 ch
 
+list xs = VD.h "ul"
+               (VD.prop [ ("class", "list")
+                        , ("style", "text-align: left;")])
+               (fmap listItem xs)
+
+listItem x = VD.h "li"
+               (VD.prop [ ("class", "list-ietm")
+                        , ("style", "")])
+               [x]
+
+tweet t = panel [ author (BL.user t), body (BL.text t) ]
+
+author a = textLabel $ T.unpack $ BL.name a
+
+body t = block (fmap telToHtml t)
+
+telToHtml (BL.AtUsername s) = inlineLabel s
+telToHtml (BL.Link s)       = inlineLabel s
+telToHtml (BL.PlainText s)  = inlineLabel s
+telToHtml (BL.Hashtag s)    = inlineLabel s
+telToHtml BL.Retweet        = inlineLabel "Retweet"
+telToHtml (BL.Spaces s)     = inlineLabel s
+telToHtml (BL.Unparsable s) = inlineLabel s
+
 columns cs =
   VD.h "div" (VD.prop [("style", "display: flex; flex-direction: row; flex-wrap: nowrap ; justify-content: flex-start; align-items: stretch;")])
        (fmap (\(x, pctWidth) -> VD.h "div" (VD.prop [("style", "align-self: stretch; flex-basis: " <> show pctWidth <> "%;")]) [x]) cs)
@@ -128,14 +157,14 @@ whenReady f = do
 
 setupWebsocket :: RHA.MonadAppHost t m => String -> m (WSInterface t, R.Dynamic t (Maybe WS.WebSocket))
 setupWebsocket socketUrl = do
-  (wsRcvE :: R.Event t WSData, wsRcvU) <- RHA.newExternalEvent
+  (wsRcvE :: R.Event t (Either String WSData), wsRcvU) <- RHA.newExternalEvent
   (wsE :: R.Event t (Maybe WS.WebSocket), wsSink) <- RHA.newExternalEvent
 
   x <- liftIO $ newEmptyMVar
 
   let wscfg = WS.WebSocketRequest (JSS.pack socketUrl) []
                                   (Just $ \ev -> putMVar x Nothing >> wsSink Nothing >> print "ws closed"  )
-                                  (Just $ \ev -> (wsRcvU . decodeMsgEvent $ ev) >> pure () )
+                                  (Just $ \ev -> (wsRcvU . decodeWSMsg $ ev) >> pure () )
 
   liftIO . void $ connectWS wscfg x wsSink 0
 
@@ -146,7 +175,7 @@ setupWebsocket socketUrl = do
   let wssend = \payload -> do
                   wsh <- tryReadMVar x
                   case wsh of
-                    Just (Just wsh') -> WS.send (encodeMsg payload) wsh' >> pure (Right True)
+                    Just (Just wsh') -> WS.send (encodeWSMsg payload) wsh' >> pure (Right True)
                     otherwise        -> return $ Left "ws not ready"
 
   let wsi = WSInterface { ws_rcve = wsRcvE
@@ -162,15 +191,16 @@ connectWS wscfg x wsSink delay =
     putMVar x $ Just ws
     wsSink $ Just ws
 
-encodeMsg :: WSData -> JSS.JSString
-encodeMsg (WSData s) = JSS.pack s
+encodeWSMsg :: WSData -> JSS.JSString
+encodeWSMsg (WSData fm) = JSS.pack "error"
+encodeWSMsg (WSCommand s) = JSS.pack s
 
-decodeMsgEvent :: ME.MessageEvent -> WSData
-decodeMsgEvent m =
+decodeWSMsg :: ME.MessageEvent -> Either String WSData
+decodeWSMsg m =
   case ME.getData m of
-    ME.StringData s       -> WSData $ JSS.unpack s
-    ME.BlobData _         -> WSData "BlobData not supported yet"
-    ME.ArrayBufferData _  -> WSData "ArrayBufferData not supported yet"
+    ME.StringData s       -> WSData <$> (A.eitherDecodeStrict . BSL8.pack . JSS.unpack $ s :: Either String BL.FeedState)
+    ME.BlobData _         -> Left "BlobData not supported yet"
+    ME.ArrayBufferData _  -> Left "ArrayBufferData not supported yet"
 --------------------------------------------------------------------------------
 
 data TestWSBLAction = TestWS deriving (Show, Eq)
@@ -178,7 +208,7 @@ data TestWSBLAction = TestWS deriving (Show, Eq)
 testWS :: TheApp t m l Counter
 testWS = do
   (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
-  (modelE :: R.Event t WSData, modelU) <- RHA.newExternalEvent
+  (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (inputE :: R.Event t String, inputU) <- RHA.newExternalEvent
 
   inputD <- R.holdDyn "" inputE
@@ -190,23 +220,34 @@ testWS = do
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
 
-  subscribeToEvent wsReady $ \_ -> ws_send wsi (WSData "hello ws")
+  subscribeToEvent wsReady $ \_ -> ws_send wsi (WSCommand "hello ws")
 
   subscribeToEvent' (R.ffilter (== TestWS) controllerE) $ \x -> do
     inputVal <- R.sample $ R.current inputD
-    void . liftIO $ ws_send wsi (WSData inputVal)
+    void . liftIO $ ws_send wsi (WSCommand inputVal)
 
   let ownViewDyn = fmap (render controllerU inputU) modelD
 
   return (ownViewDyn, pure (Counter 0))
 
   where
-    render :: Sink TestWSBLAction -> Sink String -> [WSData] -> VD.VNode l
+    render :: Sink TestWSBLAction -> Sink String -> [Either String WSData] -> VD.VNode l
     render controllerU inputU ws =
       panel [ block [stringInput (\x -> inputU x >> pure ())]
             , block [button "Test WS" redButton [VD.On "click" (void . const (controllerU TestWS))]]
-            , panel (fmap (block . (: []) . textLabel . show) ws)
+            , panel [list (fmap renderFeedItem ws)]
             ]
+
+    renderFeedMessage (BL.TweetMessage t)       = tweet t
+    renderFeedMessage (BL.UserMessage x)        = textLabel $ show x
+    renderFeedMessage (BL.SettingsMessage x)    = textLabel $ show x
+    renderFeedMessage (BL.FriendsListMessage x) = textLabel $ show x
+    renderFeedMessage (BL.ErrorMessage x)       = textLabel $ show x
+
+    renderFeedItem (Left s)            = errorLabel s
+    renderFeedItem (Right (WSData ts)) = block $ fmap renderFeedMessage ts
+    renderFeedItem (Right x)           = textLabel $ show x
+
 
 --------------------------------------------------------------------------------
 
@@ -220,15 +261,13 @@ data ChildAction     = Reset deriving (Show, Eq)
 data AppCounterModel = AppCounterModel Int Int
 type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
-data WSData = WSData String deriving (Show)
+data WSData = WSData BL.FeedState | WSCommand String deriving (Show)
 
 data WSInterface t = WSInterface
   { ws_send    :: WSData -> IO (Either String Bool)
-  , ws_rcve    :: R.Event t WSData
-  -- , ws_send_IO :: WSData -> IO ()
+  , ws_rcve    :: R.Event t (Either String WSData)
   }
 
--- the actual app
 theApp :: TheApp t m l Counter
 theApp = do
   (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent
@@ -265,7 +304,7 @@ theApp = do
 
   where
     layout own testws counters =
-      columns [(testws, 20), (own <> counters, 80)]
+      columns [(testws, 100)]
 
     onlyAddRemove AddCounter    = True
     onlyAddRemove RemoveCounter = True
@@ -311,7 +350,7 @@ counterApp id_ cmdE = do
   (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
 
   subscribeToEvent cmdE $ \ev -> case ev of
-    Reset     -> modelSink (*0) >> pure ()
+    Reset -> modelSink (*0) >> pure ()
 
   subscribeToEvent blEvents $ \ev -> case ev of
     Inc -> modelSink (+1)

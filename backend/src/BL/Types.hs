@@ -141,11 +141,11 @@ data EntityUrl = EntityUrl { eExpandedUrl :: Url
                            , eUrl         :: Url
                            , eIndices     :: [Int]
                            , eDisplayUrl  :: String
-                           } deriving (Show)
+                           } deriving (Show, Generic)
 
 data EntityHashtag = EntityHashtag { hText    :: Text
                                    , hIndices :: [Int]
-                                   } deriving (Show)
+                                   } deriving (Show, Generic)
 
 data EntityMedia = EntityMedia { mType        :: String
                                , mIndices     :: [Int]
@@ -154,7 +154,7 @@ data EntityMedia = EntityMedia { mType        :: String
                                , mDisplayUrl  :: String
                                , mExpandedUrl :: Url
                                , mSizes       :: EntityMediaSizes
-                               } deriving (Show)
+                               } deriving (Show, Generic)
 
 data EntityMediaSize = EntityMediaSize { h      :: Int
                                        , w      :: Int
@@ -172,7 +172,7 @@ data Author = Author { name                  :: Text
                      , screen_name           :: Text
                      , default_profile_image :: Bool
                      , profile_image_url     :: Url
-                     } deriving (Show, Eq, Ord)
+                     } deriving (Show, Eq, Ord, Generic)
 
 data JsonApiError = JsonApiError { errTitle   :: Text
                                  , errMessage :: Text
