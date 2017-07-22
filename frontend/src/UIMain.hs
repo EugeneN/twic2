@@ -25,6 +25,7 @@ import Data.Map.Strict               (Map)
 import qualified Data.Map.Strict     as Map
 import Data.Maybe                    (Maybe(..), isJust, fromJust)
 import Data.Monoid
+import qualified Data.Set            as Set
 import qualified Data.Text           as T
 import qualified Data.Text.Encoding  as TE
 
@@ -98,9 +99,8 @@ appContainer container anApp = do
       VD.patch VD.domAPI container oldVdom newVdom
 
 --- Userspace ------------------------------------------------------------------
-newtype Attrs = A [(String, String)]
+newtype Attrs = A { unA :: [(String, String)]}
 
-una (A x) = x
 p (A x) = VD.prop x
 p_ x    = VD.prop x
 
@@ -227,19 +227,17 @@ decodeWSMsg m =
     ME.ArrayBufferData _  -> Left "ArrayBufferData not supported yet"
 --------------------------------------------------------------------------------
 
-data TestWSBLAction =  ShowNew | ShowOld Int deriving (Show, Eq)
-
+data TestWSBLAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
-type FeedOp = Feed -> Feed
 
 testWS :: TheApp t m l Counter
 testWS = do
   (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
-  (feedE :: R.Event t FeedOp, feedU) <- RHA.newExternalEvent
+  -- (feedE :: R.Event t FeedOp, feedU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
-  feedD  <- R.foldDyn ($) ([],[],[]) feedE
+  feedD  <- R.foldDyn feedOp ([],[],[]) controllerE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   (wsi, wsready) <- setupWebsocket socketUrl
@@ -252,42 +250,41 @@ testWS = do
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
     otherwise -> pure ()
 
-  subscribeToEvent tweetsE $ \x ->
-    feedU $ \(old, cur, new) -> (old, cur, new <> [x]) -- TODO unique
-
-  subscribeToEvent (R.ffilter isShowOld controllerE) $ \_ -> do
-    feedU $ \(old, cur, new) -> (allButLast old, last_ old <> cur, new)
-    pure ()
-
-  subscribeToEvent (R.ffilter (== ShowNew) controllerE) $ \_ -> do
-    feedU $ \(old, cur, new) -> (old <> cur, new, [])
-    pure ()
+  subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
 
   let ownViewDyn = fmap (render controllerU) feedD
 
   return (ownViewDyn, pure (Counter 0))
 
   where
-    allButLast [] = []
-    allButLast xs = DL.init xs
+    feedOp op (old, cur, new) = case op of
+      AddNew t  -> (old, cur, (unique $ new <> [t]))
+      ShowNew   -> ((unique $ old <> cur), new, [])
+      ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new)
 
-    last_ [] = []
-    last_ xs = [DL.last xs]
+    unique xs = Set.toAscList . Set.fromList $ xs
+
+    allButLast n [] = []
+    allButLast n xs = DL.init xs
+
+    last_ n [] = []
+    last_ n xs = [DL.last xs]
 
     unpackTweet (BL.TweetMessage t) = t
 
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
 
-    isShowOld (ShowOld _) = True
-    isShowOld _           = False
+    isShowOldOrNew (ShowOld _) = True
+    isShowOldOrNew ShowNew     = True
+    isShowOldOrNew _           = False
 
     render :: Sink TestWSBLAction -> Feed -> VD.VNode l
     render controllerU (old, cur, new) =
-      panel [ block [button "..." (una redButton) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
+      panel [ block [button "..." (unA flatButton) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
             , panel [list $ if DL.null cur then [textLabel "EOF"] else (fmap renderTweet cur)]
             , block [button (show $ length new)
-                            (una $ roundButton <> (if length new > 0 then redButton else greyButton))
+                            (unA $ roundButton <> (if length new > 0 then redButton else greyButton))
                             [VD.On "click" (void . const (controllerU ShowNew))]]
             ]
 
@@ -371,12 +368,12 @@ theApp = do
 
     render :: Sink AppBLAction -> (AppCounterModel, Counter) -> VD.VNode l
     render controllerU (AppCounterModel new old, Counter total) =
-      panel [ panel [ button "-" (una greenButton) [VD.On "click" (void . const (controllerU RemoveCounter))]
+      panel [ panel [ button "-" (unA greenButton) [VD.On "click" (void . const (controllerU RemoveCounter))]
                     , textLabel $ "Counters: " <> show new <> " (was: " <> show old <> ")"
-                    , button "+" (una greenButton) [VD.On "click" (void . const (controllerU AddCounter))]
+                    , button "+" (unA greenButton) [VD.On "click" (void . const (controllerU AddCounter))]
                     ]
             , panel [ textLabel $ "Total counters sum: " <> show total
-                    , button "Reset all" (una redButton) [VD.On "click" (void . const (controllerU ResetAll))]
+                    , button "Reset all" (unA redButton) [VD.On "click" (void . const (controllerU ResetAll))]
                     ]
             ]
 
@@ -409,7 +406,7 @@ counterApp id_ cmdE = do
   where
     render :: Sink CounterBLAction -> Counter -> VD.VNode l
     render blSink (Counter c) =
-      panel [ button "-" (una blueButton) [VD.On "click" (void . const (blSink Dec))]
+      panel [ button "-" (unA blueButton) [VD.On "click" (void . const (blSink Dec))]
             , textLabel $ "Counter #" <> show id_ <> ": " <> show c
-            , button "+" (una blueButton) [VD.On "click" (void . const (blSink Inc))]
+            , button "+" (unA blueButton) [VD.On "click" (void . const (blSink Inc))]
             ]
