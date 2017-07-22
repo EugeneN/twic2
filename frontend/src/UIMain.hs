@@ -234,7 +234,6 @@ testWS :: TheApp t m l Counter
 testWS = do
   (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
-  -- (feedE :: R.Event t FeedOp, feedU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
   feedD  <- R.foldDyn feedOp ([],[],[]) controllerE
@@ -262,7 +261,7 @@ testWS = do
       ShowNew   -> ((unique $ old <> cur), new, [])
       ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new)
 
-    unique xs = Set.toAscList . Set.fromList $ xs
+    unique = Set.toAscList . Set.fromList
 
     allButLast n [] = []
     allButLast n xs = DL.init xs
@@ -274,10 +273,6 @@ testWS = do
 
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
-
-    isShowOldOrNew (ShowOld _) = True
-    isShowOldOrNew ShowNew     = True
-    isShowOldOrNew _           = False
 
     render :: Sink TestWSBLAction -> Feed -> VD.VNode l
     render controllerU (old, cur, new) =
