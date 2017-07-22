@@ -119,10 +119,13 @@ blueButton  = A [("style", "background-color: blue;  color: white; padding: 10px
 greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding: 10px;")]
 roundButton = A [("style", "border-radius: 50%")]
 
-block xs      = VD.h "div"  (p_ [("style", "display: block;")])            xs
-textLabel t   = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
-errorLabel t  = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
-inlineLabel t = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
+block xs       = VD.h "div"  (p_ [("style", "display: block;")])            xs
+textLabel t    = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
+errorLabel t   = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
+inlineLabel t  = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
+inlineLabel_ v = VD.h "span" (p_ [("style", "padding: 0px;")])              [v]
+link h t       = VD.h "a"    (p_ [("href", T.unpack h)])                    [VD.text $ T.unpack t]
+link_ h v      = VD.h "a"    (p_ [("href", T.unpack h)])                    [v]
 
 button label attrs listeners =
   flip VD.with listeners $
@@ -156,10 +159,10 @@ author a = textLabel $ T.unpack $ BL.name a
 
 body t = block (fmap telToHtml t)
 
-telToHtml (BL.AtUsername s) = inlineLabel s
-telToHtml (BL.Link s)       = inlineLabel s
+telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
+telToHtml (BL.Link s)       = inlineLabel_ $ link s s
 telToHtml (BL.PlainText s)  = inlineLabel s
-telToHtml (BL.Hashtag s)    = inlineLabel s
+telToHtml (BL.Hashtag s)    = inlineLabel $ "#" <> s
 telToHtml BL.Retweet        = inlineLabel "Retweet"
 telToHtml (BL.Spaces s)     = inlineLabel s
 telToHtml (BL.Unparsable s) = inlineLabel s
