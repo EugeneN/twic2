@@ -12,13 +12,15 @@ import Prelude
 import Control.Applicative           ((<*>), (<$>))
 import Control.Concurrent            (forkIO, threadDelay)
 import Control.Concurrent.MVar       (newEmptyMVar, putMVar, tryReadMVar)
-import Control.Monad                 (void, join)
+import Control.Monad                 (void, join, forM_, when)
 import Control.Monad.IO.Class        (liftIO)
 import Control.Monad.Fix             (MonadFix)
 
 import qualified Data.Aeson          as A
+import Data.Either                   (isRight)
 import qualified Data.ByteString.Char8 as BSL8
 import qualified Data.ByteString     as BSL
+import qualified Data.List           as DL
 import Data.Map.Strict               (Map)
 import qualified Data.Map.Strict     as Map
 import Data.Maybe                    (Maybe(..), isJust, fromJust)
@@ -96,15 +98,31 @@ appContainer container anApp = do
       VD.patch VD.domAPI container oldVdom newVdom
 
 --- Userspace ------------------------------------------------------------------
+newtype Attrs = A [(String, String)]
 
-redButton   = [("style", "background-color: red;   color: white; padding: 10px;")]
-greenButton = [("style", "background-color: green; color: white; padding: 10px;")]
-blueButton  = [("style", "background-color: blue;  color: white; padding: 10px;")]
+una (A x) = x
+p (A x) = VD.prop x
+p_ x    = VD.prop x
 
-block xs = VD.h "div" (VD.prop [("style", "display: block;")]) xs
-textLabel t = VD.h "span" (VD.prop [("style", "padding: 10px;")]) [VD.text t]
-errorLabel t = VD.h "span" (VD.prop [("style", "padding: 10px; color: red;")]) [VD.text t]
-inlineLabel t = VD.h "span" (VD.prop [("style", "padding: 0px;")]) [VD.text $ T.unpack t]
+instance Monoid Attrs where
+  mempty = A []
+  mappend (A a) (A b) = A . Map.toList $ Map.unionWithKey f (Map.fromList a) (Map.fromList b)
+    where
+      f k x y = case k of
+        "class" -> x <> " " <> y
+        "style" -> x <> ";" <> y
+        other   -> x <> " " <> y
+
+redButton   = A [("style", "background-color: red;   color: white; padding: 10px;")]
+greenButton = A [("style", "background-color: green; color: white; padding: 10px;")]
+blueButton  = A [("style", "background-color: blue;  color: white; padding: 10px;")]
+greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding: 10px;")]
+roundButton = A [("style", "border-radius: 50%")]
+
+block xs      = VD.h "div"  (p_ [("style", "display: block;")])            xs
+textLabel t   = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
+errorLabel t  = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
+inlineLabel t = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
 
 button label attrs listeners =
   flip VD.with listeners $
@@ -187,14 +205,14 @@ setupWebsocket socketUrl = do
 
 connectWS wscfg x wsSink delay =
   forkIO $ void $ do
-    print $ "(re)connecting wensocket in " <> show delay <> "ns"
+    print $ "(re)connecting websocket in " <> show delay <> "ns"
     threadDelay delay
     ws <- WS.connect wscfg
     putMVar x $ Just ws
     wsSink $ Just ws
 
 encodeWSMsg :: WSData -> JSS.JSString
-encodeWSMsg (WSData fm) = JSS.pack "error"
+encodeWSMsg (WSData fm) = error "this action is not intended to be used"
 encodeWSMsg (WSCommand s) = JSS.pack s
 
 decodeWSMsg :: ME.MessageEvent -> Either String WSData
@@ -205,15 +223,19 @@ decodeWSMsg m =
     ME.ArrayBufferData _  -> Left "ArrayBufferData not supported yet"
 --------------------------------------------------------------------------------
 
-data TestWSBLAction = TestWS deriving (Show, Eq)
+data TestWSBLAction =  ShowNew | ShowOld Int deriving (Show, Eq)
+
+type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
+type FeedOp = Feed -> Feed
 
 testWS :: TheApp t m l Counter
 testWS = do
   (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
-  (inputE :: R.Event t String, inputU) <- RHA.newExternalEvent
+  (feedE :: R.Event t FeedOp, feedU) <- RHA.newExternalEvent
+  (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
-  inputD <- R.holdDyn "" inputE
+  feedD  <- R.foldDyn ($) ([],[],[]) feedE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   (wsi, wsready) <- setupWebsocket socketUrl
@@ -222,33 +244,50 @@ testWS = do
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
 
-  subscribeToEvent wsReady $ \_ -> ws_send wsi (WSCommand "hello ws")
+  subscribeToEvent modelE $ \x -> case x of
+    Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
+    otherwise -> pure ()
 
-  subscribeToEvent' (R.ffilter (== TestWS) controllerE) $ \x -> do
-    inputVal <- R.sample $ R.current inputD
-    void . liftIO $ ws_send wsi (WSCommand inputVal)
+  subscribeToEvent tweetsE $ \x ->
+    feedU $ \(old, cur, new) -> (old, cur, new <> [x])
 
-  let ownViewDyn = fmap (render controllerU inputU) modelD
+  subscribeToEvent (R.ffilter isShowOld controllerE) $ \_ -> do
+    feedU $ \(old, cur, new) -> (allButLast old, last_ old <> cur, new)
+    pure ()
+
+  subscribeToEvent (R.ffilter (== ShowNew) controllerE) $ \_ -> do
+    feedU $ \(old, cur, new) -> (old <> cur, new, [])
+    pure ()
+
+  let ownViewDyn = fmap (render controllerU) feedD
 
   return (ownViewDyn, pure (Counter 0))
 
   where
-    render :: Sink TestWSBLAction -> Sink String -> [Either String WSData] -> VD.VNode l
-    render controllerU inputU ws =
-      panel [ block [stringInput (\x -> inputU x >> pure ())]
-            , block [button "Test WS" redButton [VD.On "click" (void . const (controllerU TestWS))]]
-            , panel [list (fmap renderFeedItem ws)]
+    allButLast [] = []
+    allButLast xs = DL.init xs
+
+    last_ [] = []
+    last_ xs = [DL.last xs]
+
+    unpackTweet (BL.TweetMessage t) = t
+
+    isTweet (BL.TweetMessage _) = True
+    isTweet _                   = False
+
+    isShowOld (ShowOld _) = True
+    isShowOld _           = False
+
+    render :: Sink TestWSBLAction -> Feed -> VD.VNode l
+    render controllerU (old, cur, new) =
+      panel [ block [button "..." (una redButton) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
+            , panel [list $ if DL.null cur then [textLabel "EOF"] else (fmap renderTweet cur)]
+            , block [button (show $ length new)
+                            (una $ roundButton <> (if length new > 0 then redButton else greyButton))
+                            [VD.On "click" (void . const (controllerU ShowNew))]]
             ]
 
-    renderFeedMessage (BL.TweetMessage t)       = tweet t
-    renderFeedMessage (BL.UserMessage x)        = textLabel $ show x
-    renderFeedMessage (BL.SettingsMessage x)    = textLabel $ show x
-    renderFeedMessage (BL.FriendsListMessage x) = textLabel $ show x
-    renderFeedMessage (BL.ErrorMessage x)       = textLabel $ show x
-
-    renderFeedItem (Left s)            = errorLabel s
-    renderFeedItem (Right (WSData ts)) = block $ fmap renderFeedMessage ts
-    renderFeedItem (Right x)           = textLabel $ show x
+    renderTweet t = block [tweet t]
 
 
 --------------------------------------------------------------------------------
@@ -328,12 +367,12 @@ theApp = do
 
     render :: Sink AppBLAction -> (AppCounterModel, Counter) -> VD.VNode l
     render controllerU (AppCounterModel new old, Counter total) =
-      panel [ panel [ button "-" greenButton [VD.On "click" (void . const (controllerU RemoveCounter))]
+      panel [ panel [ button "-" (una greenButton) [VD.On "click" (void . const (controllerU RemoveCounter))]
                     , textLabel $ "Counters: " <> show new <> " (was: " <> show old <> ")"
-                    , button "+" greenButton [VD.On "click" (void . const (controllerU AddCounter))]
+                    , button "+" (una greenButton) [VD.On "click" (void . const (controllerU AddCounter))]
                     ]
             , panel [ textLabel $ "Total counters sum: " <> show total
-                    , button "Reset all" redButton [VD.On "click" (void . const (controllerU ResetAll))]
+                    , button "Reset all" (una redButton) [VD.On "click" (void . const (controllerU ResetAll))]
                     ]
             ]
 
@@ -366,7 +405,7 @@ counterApp id_ cmdE = do
   where
     render :: Sink CounterBLAction -> Counter -> VD.VNode l
     render blSink (Counter c) =
-      panel [ button "-" blueButton [VD.On "click" (void . const (blSink Dec))]
+      panel [ button "-" (una blueButton) [VD.On "click" (void . const (blSink Dec))]
             , textLabel $ "Counter #" <> show id_ <> ": " <> show c
-            , button "+" blueButton [VD.On "click" (void . const (blSink Inc))]
+            , button "+" (una blueButton) [VD.On "click" (void . const (blSink Inc))]
             ]
