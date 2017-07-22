@@ -139,6 +139,9 @@ stringInput u =
   flip VD.with [VD.On "change" (\ev -> u . JSS.unpack . jsval $ ev)] $
     VD.h "input" (VD.prop [("type", "text"), ("style", "padding: 2px 5px; margin: 5px 0px;")]) []
 
+noTweetsLabel = VD.h "div" (p_ [("class", "no-tweets")]) . (:[]) . VD.text
+container = VD.h "div" (VD.prop [("id", "container"), ("class", "container")])
+
 panel ch = VD.h "div"
                 (VD.prop [ ("class", "panel")
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
@@ -275,13 +278,14 @@ testWS = do
     isTweet _                   = False
 
     render :: Sink TestWSBLAction -> Feed -> VD.VNode l
-    render controllerU (old, cur, new) =
-      panel [ block [button "..." (unA flatButton) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
-            , panel [list $ if DL.null cur then [textLabel "EOF"] else (fmap renderTweet cur)]
-            , block [button (show $ length new)
-                            (unA $ roundButton <> (if length new > 0 then redButton else greyButton))
-                            [VD.On "click" (void . const (controllerU ShowNew))]]
-            ]
+    render controllerU (old, cur, new) = block [historyButton, tweetList cur, refreshButton new] where
+      historyButton = VD.h "div" 
+        (VD.prop [("style", "text-align: center; margin-top: 15px;")]) 
+        [button "..." ([("id", "load-history-tweets-id"), ("class", "history-button")]) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
+      tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap renderTweet cur)]
+      refreshButton new = VD.h "div" (VD.prop [("class", "refresh")]) [button (show $ length new)
+                          (unA $ A [("class", if not (null new) then "there-are-new-tweets" else "no-new-tweets")])
+                          [VD.On "click" (void . const (controllerU ShowNew))]]
 
     renderTweet t = block [tweet t]
 
