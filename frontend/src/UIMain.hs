@@ -114,6 +114,7 @@ instance Monoid Attrs where
         other   -> x <> " " <> y
 
 redButton   = A [("style", "background-color: red;   color: white; padding: 10px;")]
+flatButton  = A [("style", "background-color: transparent; color: grey; padding: 10px; border: none; cursor: pointer;")]
 greenButton = A [("style", "background-color: green; color: white; padding: 10px;")]
 blueButton  = A [("style", "background-color: blue;  color: white; padding: 10px;")]
 greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding: 10px;")]
@@ -252,7 +253,7 @@ testWS = do
     otherwise -> pure ()
 
   subscribeToEvent tweetsE $ \x ->
-    feedU $ \(old, cur, new) -> (old, cur, new <> [x])
+    feedU $ \(old, cur, new) -> (old, cur, new <> [x]) -- TODO unique
 
   subscribeToEvent (R.ffilter isShowOld controllerE) $ \_ -> do
     feedU $ \(old, cur, new) -> (allButLast old, last_ old <> cur, new)
