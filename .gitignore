@@ -18,5 +18,3 @@ frontend/.stack-work
 backend/twic.db/**
 
 webexe/*
-
-!webexe/all.js
