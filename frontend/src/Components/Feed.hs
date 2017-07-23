@@ -116,10 +116,10 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
         body t = block_ "tweet-body" (fmap telToHtml t)
 
-        telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
+        telToHtml (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)] 
         telToHtml (BL.Link s)       = inlineLabel_ $ link' "inline-link" s s
         telToHtml (BL.PlainText s)  = inlineLabel s
-        telToHtml (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)] 
+        telToHtml (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
         telToHtml BL.Retweet        = inlineLabel "Retweet"
         telToHtml (BL.Spaces s)     = inlineLabel s
         telToHtml (BL.Unparsable s) = inlineLabel s
