@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 
-module Components.Counter (counterApp) where
+module Components.Counter (counterComponent) where
 
 import Prelude
 import Control.Monad                 (void)
@@ -24,8 +24,8 @@ instance Monoid Counter where
   mempty = Counter 0
   mappend (Counter a) (Counter b) = Counter (a + b)
 
-counterApp :: Int -> R.Event t ChildAction -> TheApp t m l Counter
-counterApp id_ cmdE = do
+counterComponent :: Int -> R.Event t ChildAction -> TheApp t m l Counter
+counterComponent id_ cmdE = do
   (blEvents, blSink) <- RHA.newExternalEvent
   (modelEvents :: R.Event t (Int -> Int), modelSink) <- RHA.newExternalEvent
 

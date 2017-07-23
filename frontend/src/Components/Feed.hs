@@ -11,7 +11,7 @@ import Control.Applicative           ((<*>), (<$>))
 import Control.Monad                 (void, forM_, when)
 
 import qualified Data.List           as DL
-import Data.Maybe                    (Maybe(..), isJust)
+import Data.Maybe                    (Maybe(..))
 import Data.Monoid
 import qualified Data.Set            as Set
 
@@ -19,6 +19,7 @@ import qualified Reflex              as R
 import qualified Reflex.Host.App     as RHA
 
 import qualified Data.VirtualDOM     as VD
+import qualified JavaScript.Web.WebSocket as WS
 
 import qualified BL.Types           as BL
 import BL.Instances
@@ -27,24 +28,22 @@ import UIConfig
 import Types
 import Lib.FRP
 import Lib.FW
-import Lib.WebSocket
 import Lib.UI
 
 
-data TestWSBLAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
+data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
-testWS :: TheApp t m l Counter
-testWS = do
-  (controllerE :: R.Event t TestWSBLAction, controllerU) <- RHA.newExternalEvent
+feedComponent :: R.Event t ChildAction
+              -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
+              -> TheApp t m l Counter
+feedComponent parentControllerE (wsi, wsReady) = do
+  (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
   feedD  <- R.foldDyn feedOp ([],[],[]) controllerE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
-
-  (wsi, wsready) <- setupWebsocket socketUrl
-  wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
@@ -78,7 +77,7 @@ testWS = do
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
 
-    render :: Sink TestWSBLAction -> Feed -> VD.VNode l
+    render :: Sink FeedAction -> Feed -> VD.VNode l
     render controllerU (old, cur, new) = block [historyButton, tweetList cur, refreshButton new] where
       historyButton = VD.h "div"
         (VD.prop [("style", "text-align: center; margin-top: 15px;")])

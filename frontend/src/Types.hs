@@ -27,6 +27,8 @@ type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => App
 type TheApp t m l c       = (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), R.Dynamic t c)
 type Sink a               = a -> IO Bool
 
+type ViewDyn t l     = R.Dynamic t (VD.VNode l)
+
 data ChildAction     = Reset deriving (Eq)
 
 data WSData = WSData BL.FeedState | WSCommand String deriving (Show)
