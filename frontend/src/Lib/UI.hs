@@ -1,0 +1,106 @@
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecursiveDo           #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+
+module Lib.UI where
+
+import Prelude
+import Control.Applicative           ((<*>), (<$>))
+
+import Data.Map.Strict               (Map)
+import qualified Data.Map.Strict     as Map
+import Data.Monoid
+import qualified Data.Text           as T
+
+import qualified Data.VirtualDOM     as VD
+
+import qualified Data.JSString      as JSS
+import           GHCJS.Prim         (JSVal)
+
+import qualified BL.Types           as BL
+import  BL.Instances
+
+
+newtype Attrs = A { unA :: [(String, String)]}
+
+p (A x) = VD.prop x
+p_ x    = VD.prop x
+
+instance Monoid Attrs where
+  mempty = A []
+  mappend (A a) (A b) = A . Map.toList $ Map.unionWithKey f (Map.fromList a) (Map.fromList b)
+    where
+      f k x y = case k of
+        "class" -> x <> " " <> y
+        "style" -> x <> ";" <> y
+        other   -> x <> " " <> y
+
+instance Monoid (VD.VNode l) where
+  mempty      = VD.text ""
+  mconcat as  = VD.h "div" (VD.prop []) as
+  mappend a b = VD.h "div" (VD.prop []) [a, b]
+
+redButton   = A [("style", "background-color: red;   color: white; padding: 10px;")]
+flatButton  = A [("style", "background-color: transparent; color: grey; padding: 10px; border: none; cursor: pointer;")]
+greenButton = A [("style", "background-color: green; color: white; padding: 10px;")]
+blueButton  = A [("style", "background-color: blue;  color: white; padding: 10px;")]
+greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding: 10px;")]
+roundButton = A [("style", "border-radius: 50%")]
+
+block xs       = VD.h "div"  (p_ [("style", "display: block;")])            xs
+textLabel t    = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
+errorLabel t   = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
+inlineLabel t  = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
+inlineLabel_ v = VD.h "span" (p_ [("style", "padding: 0px;")])              [v]
+link h t       = VD.h "a"    (p_ [("href", T.unpack h)])                    [VD.text $ T.unpack t]
+link_ h v      = VD.h "a"    (p_ [("href", T.unpack h)])                    [v]
+
+button label attrs listeners =
+  flip VD.with listeners $
+    VD.h "button" (VD.prop attrs) [VD.text label]
+
+foreign import javascript unsafe "$1.target.value"
+  jsval :: JSVal -> JSS.JSString
+
+stringInput u =
+  flip VD.with [VD.On "change" (\ev -> u . JSS.unpack . jsval $ ev)] $
+    VD.h "input" (VD.prop [("type", "text"), ("style", "padding: 2px 5px; margin: 5px 0px;")]) []
+
+noTweetsLabel = VD.h "div" (p_ [("class", "no-tweets")]) . (:[]) . VD.text
+container = VD.h "div" (VD.prop [("id", "container"), ("class", "container")])
+
+panel ch = VD.h "div"
+                (VD.prop [ ("class", "panel")
+                         , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
+                ch
+
+list xs = VD.h "ul"
+               (VD.prop [ ("class", "list")
+                        , ("style", "text-align: left;")])
+               (fmap listItem xs)
+
+listItem x = VD.h "li"
+               (VD.prop [ ("class", "list-ietm")
+                        , ("style", "")])
+               [x]
+
+tweet t = panel [ author (BL.user t), body (BL.text t) ]
+
+author a = textLabel $ T.unpack $ BL.name a
+
+body t = block (fmap telToHtml t)
+
+telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
+telToHtml (BL.Link s)       = inlineLabel_ $ link s s
+telToHtml (BL.PlainText s)  = inlineLabel s
+telToHtml (BL.Hashtag s)    = inlineLabel $ "#" <> s
+telToHtml BL.Retweet        = inlineLabel "Retweet"
+telToHtml (BL.Spaces s)     = inlineLabel s
+telToHtml (BL.Unparsable s) = inlineLabel s
+
+columns cs =
+  VD.h "div" (VD.prop [("style", "display: flex; flex-direction: row; flex-wrap: nowrap ; justify-content: flex-start; align-items: stretch;")])
+       (fmap (\(x, pctWidth) -> VD.h "div" (VD.prop [("style", "align-self: stretch; flex-basis: " <> show pctWidth <> "%;")]) [x]) cs)

@@ -15,6 +15,15 @@ cabal-version:       >=1.10
 executable twic2ui
   other-modules:       BL.Types
                      , BL.Instances
+                     , Components.Counter
+                     , Components.Feed
+                     , Types
+                     , App
+                     , UIConfig
+                     , Lib.FRP
+                     , Lib.FW
+                     , Lib.UI
+                     , Lib.WebSocket
 
   main-is:             UIMain.hs
 
