@@ -78,13 +78,25 @@ feedComponent parentControllerE (wsi, wsReady) = do
     isTweet _                   = False
 
     render :: Sink FeedAction -> Feed -> VD.VNode l
-    render controllerU (old, cur, new) = block [historyButton, tweetList cur, refreshButton new] where
-      historyButton = VD.h "div"
-        (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-        [button "..." ([("id", "load-history-tweets-id"), ("class", "history-button")]) [VD.On "click" (void . const (controllerU (ShowOld 1)))]]
-      tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap renderTweet cur)]
-      refreshButton new = VD.h "div" (VD.prop [("class", "refresh")]) [button (show $ length new)
-                          (unA $ A [("class", if not (null new) then "there-are-new-tweets" else "no-new-tweets")])
-                          [VD.On "click" (void . const (controllerU ShowNew))]]
+    render controllerU (old, cur, new) =
+      block [historyButton, tweetList cur, refreshButton new]
 
-    renderTweet t = block [tweet t]
+      where
+        historyButton =
+          VD.h "div"
+            (VD.prop [("style", "text-align: center; margin-top: 15px;")])
+            [button "..." ([("id", "load-history-tweets-id"), ("class", "history-button")])
+                          [VD.On "click" (void . const (controllerU (ShowOld 1)))]
+            ]
+
+        tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap renderTweet cur)]
+
+        refreshButton new =
+          VD.h "div"
+            (VD.prop [("class", "refresh")])
+            [button (show $ length new)
+                    (unA $ A [("class", if not (null new) then "there-are-new-tweets" else "no-new-tweets")])
+                    [VD.On "click" (void . const (controllerU ShowNew))]
+            ]
+
+        renderTweet t = block [tweet t]
