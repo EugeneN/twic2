@@ -116,12 +116,15 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
           otherwise -> []
 
-        author t =
-          let a = BL.user t
-              b = case BL.retweet t of
-                    Just t' -> Just $ BL.user t'
-                    Nothing -> Nothing
-              m = \c a -> VD.h "span"
+        author t = case (BL.user t, BL.user <$> BL.retweet t) of
+          (a, Nothing) -> m "user-icon" a
+          (a, Just b)  ->
+            VD.h "span"
+                  (p_ [("class", "user-icon")])
+                  [ m "user-icon1" a
+                  , m "user-icon2" b ]
+          where
+            m = \c a -> VD.h "span"
                              (p_ [("class", c)])
                              [VD.h "a"
                                    (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
@@ -132,15 +135,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
                                          []
                                    ]
                              ]
-          in case (a, b) of
-            (a', Nothing) -> m "user-icon" a'
 
-            (a', Just b') ->
-              VD.h "span"
-                    (p_ [("class", "user-icon")])
-                    [ m "user-icon1" a'
-                    , m "user-icon2" b'
-                    ]
 
         body t = if isJust (BL.media . BL.entities $ t)
                     && isLink (DL.last $ BL.text t)
