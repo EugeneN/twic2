@@ -100,7 +100,21 @@ feedComponent parentControllerE (wsi, wsReady) = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        tweet t = panel' [ author (BL.user t), body (BL.text t) ]
+        tweet t = panel' $ [ author (BL.user t), body (BL.text t) ] <> entities (BL.entities t)
+
+        entities e = case BL.media e of
+          Just xs -> flip fmap xs $ \m -> VD.h "div"
+                                            (p_ [("class", "media")])
+                                            [link_ (T.pack $ BL.mMediaUrl m)
+                                                   (VD.h "img"
+                                                         (p_ [ ("class", "inline-img")
+                                                             , ("src", BL.mMediaUrl m)
+                                                             , ("title", "")] )
+                                                         []
+                                                   )
+                                            ]
+
+          otherwise -> []
 
         author a = VD.h "span"
                         (p_ [("class", "user-icon")])
@@ -116,7 +130,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
         body t = block_ "tweet-body" (fmap telToHtml t)
 
-        telToHtml (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)] 
+        telToHtml (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
         telToHtml (BL.Link s)       = inlineLabel_ $ link' "inline-link" s s
         telToHtml (BL.PlainText s)  = inlineLabel s
         telToHtml (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
