@@ -57,9 +57,9 @@ textLabel_ cls t = VD.h "span" (p_ [("class", cls)])                        [VD.
 errorLabel t   = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
 inlineLabel t  = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
 inlineLabel_ v = VD.h "span" (p_ [("style", "padding: 0px;")])              [v]
-link h t       = VD.h "a"    (p_ [("href", T.unpack h)])                    [VD.text $ T.unpack t]
-link' cls h t      = VD.h "a"    (p_ [("class", cls), ("href", T.unpack h), ("target", "_blank")]) [VD.text $ T.unpack t]
-link_ h v      = VD.h "a"    (p_ [("href", T.unpack h)])                    [v]
+link h t       = VD.h "a"    (p_ [("href", T.unpack h), ("target", "_blank")])                 [VD.text $ T.unpack t]
+link' cls h t  = VD.h "a"    (p_ [("class", cls), ("href", T.unpack h), ("target", "_blank")]) [VD.text $ T.unpack t]
+link_ h v      = VD.h "a"    (p_ [("href", T.unpack h), ("target", "_blank")])                 [v]
 
 button label attrs listeners =
   flip VD.with listeners $

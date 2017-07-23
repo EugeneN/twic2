@@ -100,7 +100,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        tweet t = panel' $ [ author (BL.user t), body t ] <> entities (BL.entities t)
+        tweet t = panel' $ [ author t, body t ] <> entities (BL.entities t)
 
         entities e = case BL.media e of
           Just xs -> flip fmap xs $ \m -> VD.h "div"
@@ -116,17 +116,31 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
           otherwise -> []
 
-        author a = VD.h "span"
-                        (p_ [("class", "user-icon")])
-                        [VD.h "span"
-                              (p_ [("class", "user-icon")])
-                              [VD.h "img"
-                                    (p_ [ ("class", "user-icon-img")
-                                        , ("src", BL.profile_image_url a)
-                                        , ("title", T.unpack $ BL.name a)])
-                                    []
-                              ]
-                        ]
+        author t =
+          let a = BL.user t
+              b = case BL.retweet t of
+                    Just t' -> Just $ BL.user t'
+                    Nothing -> Nothing
+              m = \c a -> VD.h "span"
+                             (p_ [("class", c)])
+                             [VD.h "a"
+                                   (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
+                                   [VD.h "img"
+                                         (p_ [ ("class", "user-icon-img")
+                                             , ("src", BL.profile_image_url a)
+                                             , ("title", T.unpack $ BL.name a)])
+                                         []
+                                   ]
+                             ]
+          in case (a, b) of
+            (a', Nothing) -> m "user-icon" a'
+
+            (a', Just b') ->
+              VD.h "span"
+                    (p_ [("class", "user-icon")])
+                    [ m "user-icon1" a'
+                    , m "user-icon2" b'
+                    ]
 
         body t = if isJust (BL.media . BL.entities $ t)
                     && isLink (DL.last $ BL.text t)
