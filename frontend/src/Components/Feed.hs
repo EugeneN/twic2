@@ -11,7 +11,7 @@ import Control.Applicative           ((<*>), (<$>))
 import Control.Monad                 (void, forM_, when)
 
 import qualified Data.List           as DL
-import Data.Maybe                    (Maybe(..))
+import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe)
 import Data.Monoid
 import qualified Data.Set            as Set
 import qualified Data.Text           as T
@@ -31,6 +31,12 @@ import Lib.FRP
 import Lib.FW
 import Lib.UI
 
+
+allButLast n [] = []
+allButLast n xs = DL.init xs
+
+last_ n [] = []
+last_ n xs = [DL.last xs]
 
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
@@ -67,12 +73,6 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
     unique = Set.toAscList . Set.fromList
 
-    allButLast n [] = []
-    allButLast n xs = DL.init xs
-
-    last_ n [] = []
-    last_ n xs = [DL.last xs]
-
     unpackTweet (BL.TweetMessage t) = t
 
     isTweet (BL.TweetMessage _) = True
@@ -100,7 +100,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        tweet t = panel' $ [ author (BL.user t), body (BL.text t) ] <> entities (BL.entities t)
+        tweet t = panel' $ [ author (BL.user t), body t ] <> entities (BL.entities t)
 
         entities e = case BL.media e of
           Just xs -> flip fmap xs $ \m -> VD.h "div"
@@ -128,12 +128,27 @@ feedComponent parentControllerE (wsi, wsReady) = do
                               ]
                         ]
 
-        body t = block_ "tweet-body" (fmap telToHtml t)
+        body t = block_ "tweet-body" (fmap (telToHtml t) (BL.text t))
 
-        telToHtml (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
-        telToHtml (BL.Link s)       = inlineLabel_ $ link' "inline-link" s s
-        telToHtml (BL.PlainText s)  = inlineLabel s
-        telToHtml (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
-        telToHtml BL.Retweet        = inlineLabel "Retweet"
-        telToHtml (BL.Spaces s)     = inlineLabel s
-        telToHtml (BL.Unparsable s) = inlineLabel s
+        body t = if isJust (BL.media . BL.entities $ t)
+                    && isLink (DL.last $ BL.text t)
+                    && isNothing (resolveLink t . (\(BL.Link s) -> s) . DL.last . BL.text $ t)
+                 then block_ "tweet-body" (fmap (telToHtml t) (allButLast 1 $ BL.text t))
+                 else block_ "tweet-body" (fmap (telToHtml t) (BL.text t))
+
+        telToHtml t (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
+
+        telToHtml t (BL.Link s) = case resolveLink t s of
+            Nothing -> inlineLabel_ $ link' "inline-link" s s
+            Just x  -> inlineLabel_ $ link' "inline-link" (T.pack $ BL.eExpandedUrl x) (T.pack $ BL.eDisplayUrl x)
+
+        telToHtml t (BL.PlainText s)  = inlineLabel s
+        telToHtml t (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
+        telToHtml t BL.Retweet        = inlineLabel "Retweet"
+        telToHtml t (BL.Spaces s)     = inlineLabel s
+        telToHtml t (BL.Unparsable s) = inlineLabel s
+
+        resolveLink t s = listToMaybe $ filter ((s ==) . T.pack . BL.eUrl) (BL.urls . BL.entities $ t)
+
+        isLink (BL.Link _) = True
+        isLink _           = False
