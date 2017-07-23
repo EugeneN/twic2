@@ -128,12 +128,10 @@ feedComponent parentControllerE (wsi, wsReady) = do
                               ]
                         ]
 
-        body t = block_ "tweet-body" (fmap (telToHtml t) (BL.text t))
-
         body t = if isJust (BL.media . BL.entities $ t)
                     && isLink (DL.last $ BL.text t)
                     && isNothing (resolveLink t . (\(BL.Link s) -> s) . DL.last . BL.text $ t)
-                 then block_ "tweet-body" (fmap (telToHtml t) (allButLast 1 $ BL.text t))
+                 then block_ "tweet-body" (fmap (telToHtml t) (DL.init $ BL.text t))
                  else block_ "tweet-body" (fmap (telToHtml t) (BL.text t))
 
         telToHtml t (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
