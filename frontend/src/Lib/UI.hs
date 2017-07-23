@@ -87,20 +87,6 @@ listItem x = VD.h "li"
                         , ("style", "")])
                [x]
 
-tweet t = panel [ author (BL.user t), body (BL.text t) ]
-
-author a = textLabel $ T.unpack $ BL.name a
-
-body t = block (fmap telToHtml t)
-
-telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
-telToHtml (BL.Link s)       = inlineLabel_ $ link s s
-telToHtml (BL.PlainText s)  = inlineLabel s
-telToHtml (BL.Hashtag s)    = inlineLabel $ "#" <> s
-telToHtml BL.Retweet        = inlineLabel "Retweet"
-telToHtml (BL.Spaces s)     = inlineLabel s
-telToHtml (BL.Unparsable s) = inlineLabel s
-
 columns cs =
   VD.h "div" (VD.prop [("style", "display: flex; flex-direction: row; flex-wrap: nowrap ; justify-content: flex-start; align-items: stretch;")])
        (fmap (\(x, pctWidth) -> VD.h "div" (VD.prop [("style", "align-self: stretch; flex-basis: " <> show pctWidth <> "%;")]) [x]) cs)

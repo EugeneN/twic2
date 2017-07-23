@@ -14,6 +14,7 @@ import qualified Data.List           as DL
 import Data.Maybe                    (Maybe(..))
 import Data.Monoid
 import qualified Data.Set            as Set
+import qualified Data.Text           as T
 
 import qualified Reflex              as R
 import qualified Reflex.Host.App     as RHA
@@ -89,7 +90,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
                           [VD.On "click" (void . const (controllerU (ShowOld 1)))]
             ]
 
-        tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap renderTweet cur)]
+        tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap (block . (: []) . tweet) cur)]
 
         refreshButton new =
           VD.h "div"
@@ -99,4 +100,16 @@ feedComponent parentControllerE (wsi, wsReady) = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        renderTweet t = block [tweet t]
+        tweet t = panel [ author (BL.user t), body (BL.text t) ]
+
+        author a = textLabel $ T.unpack $ BL.name a
+
+        body t = block (fmap telToHtml t)
+
+        telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
+        telToHtml (BL.Link s)       = inlineLabel_ $ link s s
+        telToHtml (BL.PlainText s)  = inlineLabel s
+        telToHtml (BL.Hashtag s)    = inlineLabel $ "#" <> s
+        telToHtml BL.Retweet        = inlineLabel "Retweet"
+        telToHtml (BL.Spaces s)     = inlineLabel s
+        telToHtml (BL.Unparsable s) = inlineLabel s
