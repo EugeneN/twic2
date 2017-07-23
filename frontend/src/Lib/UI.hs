@@ -51,11 +51,14 @@ greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding
 roundButton = A [("style", "border-radius: 50%")]
 
 block xs       = VD.h "div"  (p_ [("style", "display: block;")])            xs
+block_ cls xs  = VD.h "div"  (p_ [("class", cls)])                          xs
 textLabel t    = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
+textLabel_ cls t = VD.h "span" (p_ [("class", cls)])                        [VD.text t]
 errorLabel t   = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
 inlineLabel t  = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
 inlineLabel_ v = VD.h "span" (p_ [("style", "padding: 0px;")])              [v]
 link h t       = VD.h "a"    (p_ [("href", T.unpack h)])                    [VD.text $ T.unpack t]
+link' cls h t      = VD.h "a"    (p_ [("class", cls), ("href", T.unpack h), ("target", "_blank")]) [VD.text $ T.unpack t]
 link_ h v      = VD.h "a"    (p_ [("href", T.unpack h)])                    [v]
 
 button label attrs listeners =
@@ -75,6 +78,10 @@ container = VD.h "div" (VD.prop [("id", "container"), ("class", "container")])
 panel ch = VD.h "div"
                 (VD.prop [ ("class", "panel")
                          , ("style", "padding: 10px; border: 1px solid grey; width: auto; display: inline-block; margin: 5px;")])
+                ch
+panel' ch = VD.h "div"
+                (VD.prop [ ("class", "panel")
+                         , ("style", "padding: 10px; border: 0px solid grey; width: auto; display: inline-block; margin: 5px;")])
                 ch
 
 list xs = VD.h "ul"

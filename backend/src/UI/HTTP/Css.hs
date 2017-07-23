@@ -132,8 +132,8 @@ bodyCss = do
         zIndex 100
 
   ".user-icon-img" ? do
-    width (px 30)
-    height (px 30)
+    width (px 36)
+    height (px 36)
     margin (px 0) (px 0) (px 0) (px 0)
     borderRadius (pct 50) (pct 50) (pct 50) (pct 50)
     transition "all" (ms 150) ease (ms 150)

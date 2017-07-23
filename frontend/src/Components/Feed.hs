@@ -100,16 +100,26 @@ feedComponent parentControllerE (wsi, wsReady) = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        tweet t = panel [ author (BL.user t), body (BL.text t) ]
+        tweet t = panel' [ author (BL.user t), body (BL.text t) ]
 
-        author a = textLabel $ T.unpack $ BL.name a
+        author a = VD.h "span"
+                        (p_ [("class", "user-icon")])
+                        [VD.h "span"
+                              (p_ [("class", "user-icon")])
+                              [VD.h "img"
+                                    (p_ [ ("class", "user-icon-img")
+                                        , ("src", BL.profile_image_url a)
+                                        , ("title", T.unpack $ BL.name a)])
+                                    []
+                              ]
+                        ]
 
-        body t = block (fmap telToHtml t)
+        body t = block_ "tweet-body" (fmap telToHtml t)
 
         telToHtml (BL.AtUsername s) = inlineLabel $ "@" <> s
-        telToHtml (BL.Link s)       = inlineLabel_ $ link s s
+        telToHtml (BL.Link s)       = inlineLabel_ $ link' "inline-link" s s
         telToHtml (BL.PlainText s)  = inlineLabel s
-        telToHtml (BL.Hashtag s)    = inlineLabel $ "#" <> s
+        telToHtml (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)] 
         telToHtml BL.Retweet        = inlineLabel "Retweet"
         telToHtml (BL.Spaces s)     = inlineLabel s
         telToHtml (BL.Unparsable s) = inlineLabel s
