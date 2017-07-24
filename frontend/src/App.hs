@@ -44,8 +44,8 @@ theApp = do
   (wsi, wsready) <- setupWebsocket socketUrl
   wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
-  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady)
-  (userinfoComponentViewD, _) <- userinfoComponent
+  (userinfoComponentViewD, requestUserInfoU) <- userinfoComponent
+  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU
 
   let resultViewDyn = layout <$> feedComponentViewD <*> userinfoComponentViewD
 

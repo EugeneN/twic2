@@ -43,8 +43,9 @@ type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
 feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
+              -> Sink UserInfoQuery
               -> TheApp t m l Counter
-feedComponent parentControllerE (wsi, wsReady) = do
+feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
   (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
@@ -61,7 +62,7 @@ feedComponent parentControllerE (wsi, wsReady) = do
 
   subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
 
-  let ownViewDyn = fmap (render controllerU) feedD
+  let ownViewDyn = fmap (render controllerU requestUserInfoU) feedD
 
   return (ownViewDyn, pure (Counter 0))
 
@@ -78,8 +79,8 @@ feedComponent parentControllerE (wsi, wsReady) = do
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
 
-    render :: Sink FeedAction -> Feed -> VD.VNode l
-    render controllerU (old, cur, new) =
+    render :: Sink FeedAction -> Sink UserInfoQuery -> Feed -> VD.VNode l
+    render controllerU requestUserInfoU (old, cur, new) =
       block [historyButton, tweetList cur, refreshButton new]
 
       where
@@ -128,7 +129,8 @@ feedComponent parentControllerE (wsi, wsReady) = do
                              (p_ [("class", c)])
                              [VD.h "a"
                                    (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
-                                   [VD.h "img"
+                                   [flip VD.with [VD.On "click" (void . const (requestUserInfoU (RequestUserInfo $ T.unpack $ BL.screen_name a)))] $
+                                       VD.h "img"
                                          (p_ [ ("class", "user-icon-img")
                                              , ("src", BL.profile_image_url a)
                                              , ("title", T.unpack $ BL.name a)])
