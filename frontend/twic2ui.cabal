@@ -17,6 +17,7 @@ executable twic2ui
                      , BL.Instances
                      , Components.Counter
                      , Components.Feed
+                     , Components.UserInfo
                      , Types
                      , App
                      , UIConfig

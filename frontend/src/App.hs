@@ -29,7 +29,8 @@ import Lib.FRP
 import Lib.FW
 import Lib.UI
 import Lib.WebSocket
-import Components.Feed
+import Components.Feed                (feedComponent)
+import Components.UserInfo            (userinfoComponent)
 
 
 data AppBLAction = Something deriving (Show, Eq)
@@ -44,11 +45,12 @@ theApp = do
   wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
   (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady)
+  (userinfoComponentViewD, _) <- userinfoComponent
 
-  let resultViewDyn = layout <$> feedComponentViewD
+  let resultViewDyn = layout <$> feedComponentViewD <*> userinfoComponentViewD
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    layout feed =
-      columns [(feed, 100)]
+    layout feed userinfo =
+      userinfo <> (columns [(feed, 100)])
