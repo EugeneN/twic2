@@ -87,35 +87,40 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-            [button "..." ([("id", "load-history-tweets-id"), ("class", "history-button")])
+            [button "..." [("id", "load-history-tweets-id"), ("class", "history-button")]
                           [VD.On "click" (void . const (controllerU (ShowOld 1)))]
             ]
 
-        tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else (fmap (block . (: []) . tweet) cur)]
+        tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else fmap (block . (: []) . tweet) cur]
 
         refreshButton new =
           VD.h "div"
             (VD.prop [("class", "refresh")])
             [button (show $ length new)
-                    (unA $ A [("class", if not (null new) then "there-are-new-tweets" else "no-new-tweets")])
+                    (unA . A $ if null new
+                      then
+                        [("class", "no-new-tweets"), ("disabled", "disabled")]
+                      else
+                        [("class", "there-are-new-tweets")])
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
         tweet t = panel' $ [ author t, body t ] <> entities (BL.entities t)
 
-        entities e = case BL.media e of
-          Just xs -> flip fmap xs $ \m -> VD.h "div"
-                                            (p_ [("class", "media")])
-                                            [link_ (T.pack $ BL.mMediaUrl m)
-                                                   (VD.h "img"
-                                                         (p_ [ ("class", "inline-img")
-                                                             , ("src", BL.mMediaUrl m)
-                                                             , ("title", "")] )
-                                                         []
-                                                   )
-                                            ]
+        renderMediaImage m = VD.h "div" (p_ [("class", "media")])
+                                        [link_ (T.pack $ BL.mMediaUrl m)
+                                                 (VD.h "img"
+                                                       (p_ [ ("class", "inline-img")
+                                                           , ("src", BL.mMediaUrl m)
+                                                           , ("title", "")] )
+                                                       []
+                                                 )
+                                          ]
 
-          otherwise -> []
+        entities e = case BL.media e of
+          Just xs -> flip fmap xs $ \m -> case BL.mType m of
+            "photo" -> renderMediaImage m
+          _ -> []
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of
           (a, Nothing) -> m "user-icon" a
@@ -128,7 +133,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
             m = \c a -> VD.h "span"
                              (p_ [("class", c)])
                              [VD.h "a"
-                                   (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
+                                   (p_ [("href", T.unpack "javascript:void(0)"), ("target", "_blank")])
+                                  --  (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
                                    [flip VD.with [VD.On "click" (void . const (requestUserInfoU (RequestUserInfo $ T.unpack $ BL.screen_name a)))] $
                                        VD.h "img"
                                          (p_ [ ("class", "user-icon-img")
