@@ -31,6 +31,9 @@ setTitle = js_setTitle . JSS.pack
 foreign import javascript unsafe "document.title = $1"
     js_setTitle :: JSS.JSString -> IO ()
 
+foreign import javascript unsafe "window.scrollTo(0,0)"
+    scrollToTop :: IO ()
+
 newtype Attrs = A { unA :: [(String, String)]}
 
 p (A x) = VD.prop x

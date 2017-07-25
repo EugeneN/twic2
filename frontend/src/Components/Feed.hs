@@ -120,11 +120,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
             (VD.prop [("class", "refresh")])
             [button (show $ length new)
                     (unA . A $ if null new
-                      then
-                        [("class", "no-new-tweets")]
-                      else
-                        [("class", "there-are-new-tweets")])
-                    [VD.On "click" (void . const (controllerU ShowNew))]
+                      then [("class", "no-new-tweets")]
+                      else [("class", "there-are-new-tweets")])
+                    [VD.On "click" (void . const (controllerU ShowNew >> scrollToTop))]
             ]
 
         tweet t = panel' $ [ toolbar t, author t, body t ] <> entities (BL.entities t)
