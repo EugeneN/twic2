@@ -8,6 +8,7 @@ module Components.Feed where
 
 import Prelude
 import Control.Applicative           ((<*>), (<$>))
+import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when)
 
 import qualified Data.List           as DL
@@ -21,6 +22,7 @@ import qualified Reflex.Host.App     as RHA
 
 import qualified Data.VirtualDOM     as VD
 import qualified JavaScript.Web.WebSocket as WS
+import qualified Data.JSString      as JSS
 
 import qualified BL.Types           as BL
 import BL.Instances
@@ -30,6 +32,7 @@ import Types
 import Lib.FRP
 import Lib.FW
 import Lib.UI
+import Lib.Net (getAPI)
 
 
 allButLast n [] = []
@@ -39,6 +42,7 @@ last_ n [] = []
 last_ n xs = [DL.last xs]
 
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
+data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
 feedComponent :: R.Event t ChildAction
@@ -46,6 +50,7 @@ feedComponent :: R.Event t ChildAction
               -> Sink UserInfoQuery
               -> TheApp t m l Counter
 feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
+  (tweetActionE :: R.Event t TweetAction, tweetActionU) <- RHA.newExternalEvent
   (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
@@ -67,7 +72,19 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
                   1 -> "1 new tweet"
                   x -> show x <> " new tweets"
 
-  let ownViewDyn = fmap (render controllerU requestUserInfoU) feedD
+  subscribeToEvent tweetActionE $ \c -> forkIO $ case c of
+    Retweet t -> do
+      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <-
+                            getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id_ t)
+      print $ "Retweet result (TODO reply component): " <> show x -- TODO notification component
+    Reply t -> do
+      print "TODO reply component"
+    Love t -> do
+      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <-
+                              getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
+      print $ "Love result (TODO reply component): " <> show x
+
+  let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) feedD
 
   return (ownViewDyn, pure (Counter 0))
 
@@ -84,8 +101,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
 
-    render :: Sink FeedAction -> Sink UserInfoQuery -> Feed -> VD.VNode l
-    render controllerU requestUserInfoU (old, cur, new) =
+    render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> Feed -> VD.VNode l
+    render controllerU requestUserInfoU tweetActionU (old, cur, new) =
       block [historyButton, tweetList cur, refreshButton new]
 
       where
@@ -132,13 +149,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
 
         toolbar t = VD.h "span"
                          (p toolbarStyle)
-                         [ flip VD.with [VD.On "click" (\_ -> print $ "retweet " <> (show $ BL.id_ t))] $
+                         [ flip VD.with [VD.On "click" (\_ -> tweetActionU (Retweet t) >> pure ())] $
                              VD.h "button" (p toolbarBtnStyle) [VD.text "RT"]
 
-                         , flip VD.with [VD.On "click" (\_ -> print $ "reply " <> (show $ BL.id_ t))] $
+                         , flip VD.with [VD.On "click" (\_ -> tweetActionU (Reply t) >> pure ())] $
                              VD.h "button" (p toolbarBtnStyle) [VD.text "RE"]
 
-                         , flip VD.with [VD.On "click" (\_ -> print $ "love " <> (show $ BL.id_ t))] $
+                         , flip VD.with [VD.On "click" (\_ -> tweetActionU (Love t) >> pure ())] $
                              VD.h "button" (p toolbarBtnStyle) [VD.text "LV"]
                          ]
 
