@@ -174,7 +174,9 @@ userinfoComponent = do
                   [VD.text $ "Register on " <> show userCreatedAt]
            , VD.h "li"
                   (p_ [("style", "margin:0; padding: 5px")])
-                  [ VD.text $ show userFollowersCount <> " followers, " <> show userFriendsCount <> " friends, " <> show userStatusesCount <> " tweets"]
+                  [ VD.text $ show userFollowersCount <> " followers, "
+                           <> show userFriendsCount <> " friends, "
+                           <> show userStatusesCount <> " tweets"]
            , VD.h "li"
                   (p_ [("style", "margin:0; padding: 5px")])
                   [ maybe (VD.text "Following status unknown")

@@ -110,7 +110,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
                     [VD.On "click" (void . const (controllerU ShowNew))]
             ]
 
-        tweet t = panel' $ [ author t, body t ] <> entities (BL.entities t)
+        tweet t = panel' $ [ toolbar t, author t, body t ] <> entities (BL.entities t)
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
                                         [link_ (T.pack $ BL.mMediaUrl m)
@@ -126,6 +126,21 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
           Just xs -> flip fmap xs $ \m -> case BL.mType m of
             "photo" -> renderMediaImage m
           _ -> []
+
+        toolbarStyle = A [ ("class", "tweet-toolbar") ]
+        toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
+
+        toolbar t = VD.h "span"
+                         (p toolbarStyle)
+                         [ flip VD.with [VD.On "click" (\_ -> print $ "retweet " <> (show $ BL.id_ t))] $
+                             VD.h "button" (p toolbarBtnStyle) [VD.text "RT"]
+
+                         , flip VD.with [VD.On "click" (\_ -> print $ "reply " <> (show $ BL.id_ t))] $
+                             VD.h "button" (p toolbarBtnStyle) [VD.text "RE"]
+
+                         , flip VD.with [VD.On "click" (\_ -> print $ "love " <> (show $ BL.id_ t))] $
+                             VD.h "button" (p toolbarBtnStyle) [VD.text "LV"]
+                         ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of
           (a, Nothing) -> m "user-icon" a

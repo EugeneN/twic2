@@ -390,6 +390,28 @@ bodyCss = do
   ".popup-panel-label" ? do
     fontSize (px 36)
 
+  ".tweet-toolbar" ? do
+    position absolute
+    top (px 0)
+    right (px 0)
+    width (px 30)
+    height (px 90)
+    background transparent
+    display none
+
+  ".panel" # hover ? do
+    ".tweet-toolbar" ? do
+      display block
+
+  ".tweet-toolbar-button" # hover ? do
+    background black
+    color white
+
+  ".tweet-toolbar-button" ? do
+    color black
+    background transparent
+    border solid (px 0) transparent
+    cursor pointer
 
 
 usernameCss :: Css
