@@ -61,6 +61,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
     otherwise -> pure ()
 
   subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
+  subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
+    setTitle $ case length new of
+                  0 -> "No new tweets"
+                  1 -> "1 new tweet"
+                  x -> show x <> " new tweets"
 
   let ownViewDyn = fmap (render controllerU requestUserInfoU) feedD
 

@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE CPP                   #-}
 
 module Lib.UI where
 
@@ -23,6 +24,12 @@ import           GHCJS.Prim         (JSVal)
 import qualified BL.Types           as BL
 import  BL.Instances
 
+
+setTitle :: String -> IO ()
+setTitle = js_setTitle . JSS.pack
+
+foreign import javascript unsafe "document.title = $1"
+    js_setTitle :: JSS.JSString -> IO ()
 
 newtype Attrs = A { unA :: [(String, String)]}
 
