@@ -68,7 +68,7 @@ userinfoComponent = do
 
   where
 
-    userInfoStyle User{..} = DL.intercalate ";"
+    userInfoStyleStatic = DL.intercalate ";"
         [ "display: block"
         , "height: 460px"
         , "width: 100%"
@@ -77,13 +77,15 @@ userinfoComponent = do
         , "left: 0"
         , "overflow: hidden"
         , "box-shadow: rgb(169, 169, 169) 0px 10px 50px"
-        , "background-color:" <> maybe "rgba(0,0,0,0.95)" (\c -> "#" <> T.unpack c) userProfileBackgroundColor
-        , "background-image:" <> maybe "none" (\src -> "url(" <> T.unpack src <> ")") userProfileBannerURL
-        , "background-size:" <> maybe "auto" (const "cover") userProfileBannerURL
         , "color: white"
         , "transform: translateY(-300px)"
         , "-webkit-transform: translateY(-300px)"
-        , "z-index: 1000"]
+        , "z-index: 1000" ]
+
+    userInfoStyleDynamic User{..} = DL.intercalate ";"
+        [ "background-color:" <> maybe "rgba(0,0,0,0.95)" (\c -> "#" <> T.unpack c) userProfileBackgroundColor
+        , "background-image:" <> maybe "none" (\src -> "url(" <> T.unpack src <> ")") userProfileBannerURL
+        , "background-size:" <> maybe "auto" (const "cover") userProfileBannerURL ]
 
     closeButton showU modelU =
       flip VD.with [VD.On "click" (void . const (showU False >> modelU (Left "No data yet") >> pure ()))] $
@@ -120,11 +122,13 @@ userinfoComponent = do
                [VD.text "Unfollow"]
         else VD.text "Unfollow") userFollowRequestSent
 
+    popupStyle =  A [("style", DL.intercalate ";" [ "display: block" , "width: 600px" , "text-align: left"
+                                                  , "margin: auto" , "overflow: hidden" , "padding: 20px"
+                                                  , "background-color: rgba(0,0,0,0.3)" , "height: 420px" ] )]
+
     renderUser user@User{..} =
       VD.h "ul"
-           (p_ [("style", DL.intercalate ";" [ "display: block" , "width: 600px" , "text-align: left"
-                                             , "margin: auto" , "overflow: hidden" , "padding: 20px"
-                                             , "background-color: rgba(0,0,0,0.3)" , "height: 420px" ] )])
+           (p popupStyle)
            [ VD.h "li"
                   (p_ [("style", DL.intercalate ";" [ "margin: 0", "padding: 5px", "padding-top: 5px", "margin-top: -5px"])])
                   [VD.h "span"
@@ -181,9 +185,13 @@ userinfoComponent = do
 
     cont x = VD.h "div" (p_ [("id", "userinfo-container-id")]) [x]
 
-    render _ _ (_, False)     = cont mempty
-    render _ _ (Left e, True) = cont $ errorLabel e
+    render _ _ (_, False) = cont mempty
+    render showU modelU (Left e, True) = cont $
+      VD.h "div"
+           (p $ A [("class", "user-info"), ("style", userInfoStyleStatic)])
+           [closeButton showU modelU, VD.h "div" (p popupStyle) [errorLabel e]]
+
     render showU modelU (Right BL.JsonUserInfo{..}, True) = cont $
       VD.h "div"
-           (p_ [("class", "user-info"), ("style", userInfoStyle uiData)])
+           (p $ A [("class", "user-info"), ("style", userInfoStyleStatic <> userInfoStyleDynamic uiData)])
            [closeButton showU modelU, renderUser uiData]
