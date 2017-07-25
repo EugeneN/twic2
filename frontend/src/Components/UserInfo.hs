@@ -9,6 +9,7 @@ module Components.UserInfo where
 
 import Prelude
 import Control.Applicative           ((<*>), (<$>))
+import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when)
 import Control.Monad.IO.Class        (liftIO)
 
@@ -47,21 +48,22 @@ xhrJsonGet s = return $ "xhrJsonGet " <> s
 
 userinfoComponent :: (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), Sink UserInfoQuery)
 userinfoComponent = do
-  liftIO $ print "Hello UserInfo"
+  (showE :: R.Event t Bool, showU) <- RHA.newExternalEvent
+  showD <- R.holdDyn False showE
 
   (queryE :: R.Event t UserInfoQuery, queryU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String BL.JsonUserInfo), modelU) <- RHA.newExternalEvent
-  modelD <- R.holdDyn (Left "") modelE
+  modelD <- R.holdDyn (Left "No data yet") modelE
 
   subscribeToEvent queryE $ \(RequestUserInfo screenName) -> do
-    x <- liftIO . getAPI . JSS.pack $ "http://localhost:3000/userinfo?sn=" <> screenName
-    modelU x
-    pure ()
+    showU True
+    void . forkIO $ do
+      x <- liftIO . getAPI . JSS.pack $ "http://localhost:3000/userinfo?sn=" <> screenName
+      modelU x
+      pure ()
 
-  let v = fmap render modelD
+  let v = fmap (render showU modelU) $ (,) <$> modelD <*> showD
 
-  -- show panel
-  -- listen for close panel events
   return (v, queryU)
 
   where
@@ -82,6 +84,16 @@ userinfoComponent = do
         , "transform: translateY(-300px)"
         , "-webkit-transform: translateY(-300px)"
         , "z-index: 1000"]
+
+    closeButton showU modelU =
+      flip VD.with [VD.On "click" (void . const (showU False >> modelU (Left "No data yet") >> pure ()))] $
+        VD.h "button"
+             (p_ [("style", DL.intercalate ";" [ "position: absolute"
+                                               , "top: 10px"
+                                               , "right: 10px"
+                                               , "color: white"
+                                               , "background-color: #B0E57C"])])
+             [VD.text "X"]
 
     followButton User{..} = maybe
       (VD.text "Unknown status for following")
@@ -169,7 +181,9 @@ userinfoComponent = do
 
     cont x = VD.h "div" (p_ [("id", "userinfo-container-id")]) [x]
 
-    render (Left e)                    = cont mempty
-    render (Right BL.JsonUserInfo{..}) = cont $ VD.h "div"
-                                                     (p_ [("class", "user-info"), ("style", userInfoStyle uiData)])
-                                                     [renderUser uiData]
+    render _ _ (_, False)     = cont mempty
+    render _ _ (Left e, True) = cont $ errorLabel e
+    render showU modelU (Right BL.JsonUserInfo{..}, True) = cont $
+      VD.h "div"
+           (p_ [("class", "user-info"), ("style", userInfoStyle uiData)])
+           [closeButton showU modelU, renderUser uiData]
