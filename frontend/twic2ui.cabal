@@ -25,6 +25,7 @@ executable twic2ui
                      , Lib.FW
                      , Lib.UI
                      , Lib.WebSocket
+                     , Lib.Net
 
   main-is:             UIMain.hs
 
@@ -47,3 +48,4 @@ executable twic2ui
                      , virtualdom
                      , reflex-host
                      , ghcjs-prim
+                     , mtl
