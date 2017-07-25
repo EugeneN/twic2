@@ -53,4 +53,4 @@ theApp = do
 
   where
     layout feed userinfo =
-      userinfo <> (columns [(feed, 100)])
+      (columns [(feed, 100)]) <> userinfo

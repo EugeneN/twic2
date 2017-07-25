@@ -99,7 +99,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
             [button (show $ length new)
                     (unA . A $ if null new
                       then
-                        [("class", "no-new-tweets"), ("disabled", "disabled")]
+                        [("class", "no-new-tweets")]
                       else
                         [("class", "there-are-new-tweets")])
                     [VD.On "click" (void . const (controllerU ShowNew))]
