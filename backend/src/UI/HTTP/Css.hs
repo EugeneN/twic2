@@ -91,6 +91,17 @@ bodyCss = do
     transition "all" (ms 200) linear (ms 200)
     fontSize (px 23)
 
+  ".notification-icon" ? do
+    display flex
+    width auto
+    position relative
+    marginRight (px 10)
+
+  ".notification-icon2" ? do
+    marginLeft (px (-20))
+
+  ".notification-body" ? do
+    fontSize (px 14)
 
   ".user-icon" ? do
     display inlineBlock

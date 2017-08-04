@@ -21,6 +21,10 @@ data Counter         = Counter Int deriving (Show)
 
 data UserInfoQuery = RequestUserInfo String -- XXX FIXME
 
+data Notification e n = Error e | Info n deriving Show
+
+-- data Notification = forall a . Error String | Info a deriving Show
+
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
 type AppContainer t m l c = (RHA.MonadAppHost t m, l ~ DOM.Node, c ~ Counter) => l -> TheApp t m l c -> m ()
 type AppHost              = (forall t m l c . (l ~ DOM.Node, c ~ Counter) => AppContainer t m l c)
