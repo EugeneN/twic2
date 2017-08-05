@@ -39,25 +39,7 @@ notificationComponent = do
   return (v, ntU)
   
   where
-    -- TODO: move to file with styles
-    contStyle = DL.intercalate ";" 
-      [ "width: 360px"
-      , "right: 20px"
-      , "height: 80px"
-      , "z-index: 10000"
-      , "position: fixed"
-      , "display: flex"
-      , "box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.16), 0 2px 10px 0 rgba(0, 0, 0, 0.12)"
-      , "padding: 20px"
-      , "margin: 0.5rem 0 1rem 0"
-      , "border-radius: 2px"
-      , "background-color: #fff"
-      , "-webkit-transition: all ease .4s"
-      , "-moz-transition: all ease .4s"
-      , "-o-transition: all ease .4s"
-      , "-ms-transition: all ease .4s"
-      , "transition: all ease .4s"]
-    cont s = VD.h "div" (p_ [("class", "notification-wrapper"), ("style", s)])
+    cont s = VD.h "div" (p_ [("class", "notification-wrapper " <> s)])
     
     author t = case (BL.user t, BL.user <$> BL.retweet t) of
       (a, Nothing) -> m "notification-icon" a
@@ -102,6 +84,6 @@ notificationComponent = do
     isLink (BL.Link _) = True
     isLink _           = False
     
-    render _ _ _ False = cont "dispay: none" mempty
-    render showU ntU (Info t) True = cont contStyle [author t, body t]
+    render _ _ _ False = cont "hide fadeOut" mempty
+    render showU ntU (Info t) True = cont "animated fadeIn" [author t, body t]
     render showU ntU (Error s) True = undefined

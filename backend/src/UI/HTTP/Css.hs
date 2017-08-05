@@ -3,12 +3,29 @@
 module UI.HTTP.Css where
 
 import           Clay
+import           Clay.Animation
 import qualified Clay        as C
 import           Data.Monoid ((<>))
+import           Data.Foldable (foldMap)
+import           Prelude hiding (rem)
 
 entityColor = "#2FC2EF" :: Color
 baseColor = "#404040" :: Color
 
+animationCss :: Css
+animationCss = do
+  keyframesFromTo "fadeIn" (opacity 0) (opacity 1)
+  keyframesFromTo "fadeOut" (opacity 1) (opacity 0)
+  
+  ".animated" ? do
+    animationDuration (sec 1)
+    "animation-fill-mode" -: "both"
+    
+  ".fadeIn" ? do
+    "animation-name" -: "fadeIn"
+
+  ".fadeOut" ? do
+    "animation-name" -: "fadeOut"
 
 bodyCss :: Css
 bodyCss = do
@@ -90,6 +107,23 @@ bodyCss = do
     boxShadow 0 0 (px 4) (setA 50 baseColor)
     transition "all" (ms 200) linear (ms 200)
     fontSize (px 23)
+
+  ".notification-wrapper" ? do
+    width (px 360)
+    height (px 80)
+    right (px 20)
+    zIndex 10000
+    position fixed
+    display flex
+    "box-shadow" -: "0 2px 5px 0 rgba(0, 0, 0, 0.16), 0 2px 10px 0 rgba(0, 0, 0, 0.12)"
+    padding (px 20) (px 20) (px 20) (px 20)
+    margin (rem 0.5) (rem 0) (rem 1) (rem 0)
+    borderRadius (px 2) (px 2) (px 2) (px 2)
+    background white
+    transition "all" (ms 400) ease (ms 400)
+    
+  ".notification-wrapper.hide" ? do
+    display none  
 
   ".notification-icon" ? do
     display flex
@@ -424,7 +458,6 @@ bodyCss = do
     border solid (px 0) transparent
     cursor pointer
 
-
 usernameCss :: Css
 usernameCss = ".user-name" ? do
   --fontWeight bold
@@ -442,4 +475,4 @@ usernameCss = ".user-name" ? do
     borderBottom solid (px 1) blue
 
 
-allCss =  (render bodyCss) <> (render usernameCss)
+allCss =  foldMap render [animationCss, bodyCss, usernameCss]
