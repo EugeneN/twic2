@@ -478,6 +478,11 @@ bodyCss = do
     padding (px 2) (px 6) (px 3) (px 6)
     textDecoration none
 
+  ".busy-wrapper" ? do
+    position fixed
+    bottom (px 10)
+    right (px 10)
+
 usernameCss :: Css
 usernameCss = ".user-name" ? do
   --fontWeight bold

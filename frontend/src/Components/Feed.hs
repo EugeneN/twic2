@@ -77,7 +77,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   subscribeToEvent tweetActionE $ \c -> forkIO $ case c of
     Retweet t -> do
-      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <-
+      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <- withBusy busyU $
                             getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id_ t)
       case x of
         Left e  -> ntU $ Error "Retweet failed" e
@@ -88,7 +88,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     Reply t -> do
       print "TODO reply component"
     Love t -> do
-      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <-
+      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <- withBusy busyU $
                               getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
       case x of
         Left e  -> ntU $ Error "Love a tweet failed" e
@@ -115,12 +115,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
     render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> Feed -> VD.VNode l
     render controllerU requestUserInfoU tweetActionU (old, cur, new) =
-      block [btn, btn2, historyButton, tweetList cur, refreshButton new]
+      block [historyButton, tweetList cur, refreshButton new]
 
       where
-        btn = button "PushBusy" [] [onClick (void . const (busyU PushBusy))]
-        btn2 = button "PopBusy" [] [onClick (void . const (busyU PopBusy))]
-        
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
@@ -172,7 +169,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                              VD.h "button" (p toolbarBtnStyle) [VD.text "LV"]
 
                          , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
-                                                              , ("href", "https://twitter.com/xxx/status/" <> (show $ BL.id_ t))]) 
+                                                              , ("href", "https://twitter.com/xxx/status/" <> (show $ BL.id_ t))])
                                                               [VD.text "GO"]
                          ]
 

@@ -3,11 +3,10 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE RecordWildCards     #-}
 
-module Components.Busy where
+module Components.Busy (withBusy, busyComponent, BusyCmd(..)) where
 
 import qualified Data.VirtualDOM     as VD
 import Control.Applicative
-import Control.Concurrent            (forkIO, threadDelay)
 import Control.Monad                 (when, void)
 import Control.Monad.Fix             (MonadFix)
 import Data.Monoid                   ((<>))
@@ -19,6 +18,12 @@ import qualified Reflex.Host.App     as RHA
 import Types
 
 data BusyCmd = PushBusy | PopBusy
+
+withBusy u f = do
+  u PushBusy
+  r <- f
+  u PopBusy
+  return r
 
 busyComponent :: (RHA.MonadAppHost t m, MonadFix m) => Sink Notification -> m (R.Dynamic t (VD.VNode l), Sink BusyCmd)
 busyComponent ntU = do
