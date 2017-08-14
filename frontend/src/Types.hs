@@ -17,9 +17,16 @@ import qualified Data.VirtualDOM.DOM as DOM
 
 import qualified BL.Types           as BL
 
-data Counter         = Counter Int deriving (Show)
+data Counter       = Counter Int deriving (Show)
 
 data UserInfoQuery = RequestUserInfo String -- XXX FIXME
+
+data Notification  = 
+  Error { title :: String, body :: String } 
+  | Info { title :: String, body :: String } 
+  | Warning { title :: String, body :: String } deriving Show
+
+-- data Notification = forall a . Error String | Info a deriving Show
 
 -- `l` is DOM.Node in currently; polymorphic to enable other implementations
 type AppContainer t m l c = (RHA.MonadAppHost t m, l ~ DOM.Node, c ~ Counter) => l -> TheApp t m l c -> m ()

@@ -88,7 +88,8 @@ userinfoComponent = do
         , "background-size:" <> maybe "auto" (const "cover") userProfileBannerURL ]
 
     closeButton showU modelU =
-      flip VD.with [VD.On "click" (void . const (showU False >> modelU (Left "No data yet") >> pure ()))] $
+      flip VD.with [VD.On "click" (void . const (sequence_ [showU False, modelU (Left "No data yet")] >> pure ()))] $
+      -- flip VD.with [VD.On "click" (void . const (showU False >> modelU (Left "No data yet") >> pure ()))] $
         VD.h "button"
              (p_ [("style", DL.intercalate ";" [ "position: absolute"
                                                , "top: 10px"

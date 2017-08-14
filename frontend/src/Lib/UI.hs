@@ -60,7 +60,7 @@ blueButton  = A [("style", "background-color: blue;  color: white; padding: 10px
 greyButton  = A [("style", "background-color: #c0c0c0;  color: darkgrey; padding: 10px;")]
 roundButton = A [("style", "border-radius: 50%")]
 
-block xs       = VD.h "div"  (p_ [("style", "display: block;")])            xs
+block          = VD.h "div"  (p_ [])
 block_ cls xs  = VD.h "div"  (p_ [("class", cls)])                          xs
 textLabel t    = VD.h "span" (p_ [("style", "padding: 10px;")])             [VD.text t]
 textLabel_ cls t = VD.h "span" (p_ [("class", cls)])                        [VD.text t]
@@ -107,3 +107,8 @@ listItem x = VD.h "li"
 columns cs =
   VD.h "div" (VD.prop [("style", "display: flex; flex-direction: row; flex-wrap: nowrap ; justify-content: flex-start; align-items: stretch;")])
        (fmap (\(x, pctWidth) -> VD.h "div" (VD.prop [("style", "align-self: stretch; flex-basis: " <> show pctWidth <> "%;")]) [x]) cs)
+
+
+-- Events (should be Monoid?)
+
+onClick = VD.On "click" 

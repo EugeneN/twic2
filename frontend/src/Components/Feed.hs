@@ -48,8 +48,9 @@ type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
               -> Sink UserInfoQuery
+              -> Sink Notification
               -> TheApp t m l Counter
-feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
+feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU = do
   (tweetActionE :: R.Event t TweetAction, tweetActionU) <- RHA.newExternalEvent
   (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
@@ -65,7 +66,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU = do
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
     otherwise -> pure ()
 
-  subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
+  subscribeToEvent tweetsE $ \x -> ntU (Info "Hello from TWIC" (show x)) >> controllerU (AddNew x) >> pure ()
   subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
     setTitle $ case length new of
                   0 -> "No new tweets"
