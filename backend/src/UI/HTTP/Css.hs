@@ -16,11 +16,11 @@ animationCss :: Css
 animationCss = do
   keyframesFromTo "fadeIn" (opacity 0) (opacity 1)
   keyframesFromTo "fadeOut" (opacity 1) (opacity 0)
-  
+
   ".animated" ? do
     animationDuration (sec 1)
     "animation-fill-mode" -: "both"
-    
+
   ".fadeIn" ? do
     "animation-name" -: "fadeIn"
 
@@ -122,18 +122,18 @@ bodyCss = do
     borderRadius (px 2) (px 2) (px 2) (px 2)
     background white
     transition "all" (ms 400) ease (ms 400)
-  
+
   ".notification-item-info-header" ? do
     textAlign (alignSide sideLeft)
-    
+
   ".notification-item-info-body" ? do
-    overflow hidden  
-  
+    overflow hidden
+
   ".notification-wrapper" ? do
     position relative
-    
+
   ".notification-wrapper.hide" ? do
-    display none  
+    display none
 
   ".notification-icon" ? do
     display flex
@@ -146,7 +146,7 @@ bodyCss = do
 
   ".notification-body" ? do
     fontSize (px 14)
-    
+
   ".close-button" ? do
     position absolute
     top (px 10)
@@ -474,6 +474,9 @@ bodyCss = do
     background transparent
     border solid (px 0) transparent
     cursor pointer
+    fontSize (px 11)
+    padding (px 2) (px 6) (px 3) (px 6)
+    textDecoration none
 
 usernameCss :: Css
 usernameCss = ".user-name" ? do

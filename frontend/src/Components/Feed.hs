@@ -165,6 +165,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU = do
 
                          , flip VD.with [VD.On "click" (\_ -> tweetActionU (Love t) >> pure ())] $
                              VD.h "button" (p toolbarBtnStyle) [VD.text "LV"]
+
+                         , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
+                                                              , ("href", "https://twitter.com/xxx/status/" <> (show $ BL.id_ t))]) 
+                                                              [VD.text "GO"]
                          ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of
