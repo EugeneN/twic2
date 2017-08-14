@@ -17,11 +17,14 @@ import qualified Data.VirtualDOM.DOM as DOM
 
 import qualified BL.Types           as BL
 
-data Counter         = Counter Int deriving (Show)
+data Counter       = Counter Int deriving (Show)
 
 data UserInfoQuery = RequestUserInfo String -- XXX FIXME
 
-data Notification e n = Error e | Info n deriving Show
+data Notification  = 
+  Error { title :: String, body :: String } 
+  | Info { title :: String, body :: String } 
+  | Warning { title :: String, body :: String } deriving Show
 
 -- data Notification = forall a . Error String | Info a deriving Show
 

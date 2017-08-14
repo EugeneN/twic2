@@ -1,89 +1,65 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module Components.Notification where
 
+import qualified BL.Types            as BL
 import Control.Applicative
-import Lib.UI
-import Types
+import Control.Concurrent            (forkIO, threadDelay)
+import Control.Monad.Fix             (MonadFix)
+import Data.Functor                  (void)
+import qualified Data.List           as DL
+import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe)
 import Data.Monoid
+import qualified Data.Text           as T
+import qualified Data.VirtualDOM     as VD
+import Lib.FRP
+import Lib.UI
 import qualified Reflex              as R
 import qualified Reflex.Host.App     as RHA
-import qualified Data.VirtualDOM     as VD
-import Control.Monad.Fix             (MonadFix)
-import Control.Concurrent            (forkIO, threadDelay)
-import Lib.FRP
-import Data.Functor                  (void)
-import qualified BL.Types            as BL
-import qualified Data.List           as DL
-import qualified Data.Text           as T
-import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe)
+import Types
 
-notificationComponent :: (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), Sink (Notification String BL.Tweet))
+data UpdCmd = Append Notification | RemoveByIdx Int
+
+notificationComponent :: (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), Sink Notification)
 notificationComponent = do
-  (showE :: R.Event t Bool, showU) <- RHA.newExternalEvent
-  showD <- R.holdDyn False showE
+  (updEvent :: R.Event t UpdCmd, updU) <- RHA.newExternalEvent
+  modelD <- R.foldDyn action [] updEvent
   
-  (ntE :: R.Event t (Notification String BL.Tweet), ntU) <- RHA.newExternalEvent
-  ntD <- R.holdDyn undefined ntE -- strange but I don't know what here should be
+  -- only for debug
+  subscribeToEvent (R.updated modelD) $ \n -> do
+    print $ "Length => " <> show (length n)
+    return ()
   
-  subscribeToEvent ntE $ \e -> forkIO $ do
-    showU True
-    threadDelay 3000000 -- timeout 3s
-    showU False
-    pure ()
-    
-  let v = liftA2 (render showU ntU) ntD showD
-    
-  return (v, ntU)
+  let apiU = updU . Append
+  let view = render updU <$> modelD
+  
+  return (view, apiU)
   
   where
-    cont s = VD.h "div" (p_ [("class", "notification-wrapper " <> s)])
+    action c acc = case c of
+      Append n -> acc <> [n]
+      RemoveByIdx i -> (\(a,b) -> a  <> drop 1 b) . DL.splitAt i $ acc
+
+    container s x = block_ ("notification-wrapper " <> s) [x]
     
-    author t = case (BL.user t, BL.user <$> BL.retweet t) of
-      (a, Nothing) -> m "notification-icon" a
-      (a, Just b)  ->
-        VD.h "div"
-              (p_ [("class", "notification-icon")])
-              [ m "" a
-              , m "notification-icon2" b ]
-      where
-        m c a = VD.h "div"
-                         (p_ [("class", c)])
-                         [VD.h "a"
-                               (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
-                               [VD.h "img"
-                                     (p_ [ ("class", "user-icon-img")
-                                         , ("src", BL.profile_image_url a)
-                                         , ("title", T.unpack $ BL.name a)])
-                                     []
-                               ]
-                         ]
+    render _ [] = container "hide fadeOut" mempty
+    render updU notifications = container "animated fadeIn" $ items updU notifications
     
-    body t = if isJust (BL.media . BL.entities $ t)
-                && isLink (DL.last $ BL.text t)
-                && isNothing (resolveLink t . (\(BL.Link s) -> s) . DL.last . BL.text $ t)
-             then block_ "notification-body" (fmap (telToHtml t) (DL.init $ BL.text t))
-             else block_ "notification-body" (fmap (telToHtml t) (BL.text t))
-
-    telToHtml t (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
-
-    telToHtml t (BL.Link s) = case resolveLink t s of
-        Nothing -> inlineLabel_ $ link' "inline-link" s s
-        Just x  -> inlineLabel_ $ link' "inline-link" (T.pack $ BL.eExpandedUrl x) (T.pack $ BL.eDisplayUrl x)
-
-    telToHtml t (BL.PlainText s)  = inlineLabel s
-    telToHtml t (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
-    telToHtml t BL.Retweet        = inlineLabel "Retweet"
-    telToHtml t (BL.Spaces s)     = inlineLabel s
-    telToHtml t (BL.Unparsable s) = inlineLabel s
-
-    resolveLink t s = listToMaybe $ filter ((s ==) . T.pack . BL.eUrl) (BL.urls . BL.entities $ t)
-
-    isLink (BL.Link _) = True
-    isLink _           = False
+    items updU notifications = block_ "notification-wrapper-inner" (item updU <$> zip [0..] notifications)
     
-    render _ _ _ False = cont "hide fadeOut" mempty
-    render showU ntU (Info t) True = cont "animated fadeIn" [author t, body t]
-    render showU ntU (Error s) True = undefined
+    item updU (index, n) = case n of
+      Info {..} -> template "Info" updU index title body
+      Error {..} -> template "Error" updU index title body
+      Warning {..} -> template "Warning" updU index title body
+
+    template t updU index title body = VD.h "div" (p_ [("style", "top:" <> show(65 * if index == 0 then 0 else index * 2) <> "px"), ("class", "notification-item-info notification-item-info-" <> show index)])
+      [ block_ "notification-item-info-header" [VD.text $ if null title then t else t <> " :" <> title, closeButton updU index]
+      , block_ "notification-item-info-body" [VD.text body]]
+        
+    closeButton updU index =
+      button "X" 
+        [("class", "close-button")] 
+        [onClick (const (print ("Index for delete => " <> show index) >> updU (RemoveByIdx index) >> pure ()))]
