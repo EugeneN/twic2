@@ -33,6 +33,7 @@ import Lib.FRP
 import Lib.FW
 import Lib.UI
 import Lib.Net (getAPI)
+import Components.Busy
 
 
 allButLast n [] = []
@@ -49,8 +50,9 @@ feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
               -> Sink UserInfoQuery
               -> Sink Notification
+              -> Sink BusyCmd
               -> TheApp t m l Counter
-feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU = do
+feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   (tweetActionE :: R.Event t TweetAction, tweetActionU) <- RHA.newExternalEvent
   (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
@@ -113,9 +115,12 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU = do
 
     render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> Feed -> VD.VNode l
     render controllerU requestUserInfoU tweetActionU (old, cur, new) =
-      block [historyButton, tweetList cur, refreshButton new]
+      block [btn, btn2, historyButton, tweetList cur, refreshButton new]
 
       where
+        btn = button "PushBusy" [] [onClick (void . const (busyU PushBusy))]
+        btn2 = button "PopBusy" [] [onClick (void . const (busyU PopBusy))]
+        
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])

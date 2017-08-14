@@ -19,6 +19,7 @@ executable twic2ui
                      , Components.Feed
                      , Components.UserInfo
                      , Components.Notification
+                     , Components.Busy
                      , Types
                      , App
                      , UIConfig

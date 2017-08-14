@@ -32,6 +32,7 @@ import Lib.WebSocket
 import Components.Feed                (feedComponent)
 import Components.UserInfo            (userinfoComponent)
 import Components.Notification        (notificationComponent)
+import Components.Busy                (busyComponent)
 
 
 data AppBLAction = Something deriving (Show, Eq)
@@ -46,13 +47,14 @@ theApp = do
   wsReady <- R.headE . R.ffilter isJust . R.updated $ wsready
 
   (notificationComponentViewD, ntU) <- notificationComponent
+  (busyComponentViewD, busyU) <- busyComponent ntU
   (userinfoComponentViewD, requestUserInfoU) <- userinfoComponent
-  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU
+  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU busyU
 
-  let resultViewDyn = layout <$> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD
+  let resultViewDyn = layout <$> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    layout notification feed userinfo =
-      notification <> columns [(feed, 100)] <> userinfo
+    layout notification feed userinfo busy =
+      notification <> columns [(feed, 100)] <> userinfo <> busy
