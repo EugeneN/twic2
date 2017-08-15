@@ -31,7 +31,7 @@ busyComponent ntU = do
   modelD <- R.foldDyn action 0 busyE
 
   subscribeToEvent (R.updated modelD) $ \v ->
-    when(v < 0) $ void $ ntU (Error "BusyError" "BusyError")
+    when(v < 0) . void $ ntU (Error "BusyError" "BusyError")
 
   let view = render busyU <$> modelD
 

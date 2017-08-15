@@ -21,7 +21,7 @@ import qualified Reflex              as R
 import qualified Reflex.Host.App     as RHA
 import Types
 
-data UpdCmd = Append Notification | RemoveByIdx Int
+data UpdCmd = Append Notification | RemoveByIdx Int | RemoveAll
 
 notificationComponent :: (RHA.MonadAppHost t m, MonadFix m) => m (R.Dynamic t (VD.VNode l), Sink Notification)
 notificationComponent = do
@@ -42,24 +42,40 @@ notificationComponent = do
     action c acc = case c of
       Append n -> acc <> [n]
       RemoveByIdx i -> (\(a,b) -> a  <> drop 1 b) . DL.splitAt i $ acc
+      RemoveAll -> []
 
-    container s x = block_ ("notification-wrapper " <> s) [x]
+    container x = block_ "notification-wrapper" [x]
     
-    render _ [] = container "hide fadeOut" mempty
-    render updU notifications = container "animated fadeIn" $ items updU notifications
+    render _ [] = container mempty
+    render updU notifications = container $ items updU notifications
     
-    items updU notifications = block_ "notification-wrapper-inner" (item updU <$> zip [0..] notifications)
+    items updU notifications = block_ "notification-wrapper-inner" (item c updU <$> zip [0..] notifications) 
+      where c = length notifications
     
-    item updU (index, n) = case n of
-      Info {..} -> template "Info" updU index title body
-      Error {..} -> template "Error" updU index title body
-      Warning {..} -> template "Warning" updU index title body
+    item c updU (index, n) = case n of
+      Info {..} -> template c "Info" updU "notification-info" index title body
+      Error {..} -> template c "Error" updU "notification-error" index title body
+      Warning {..} -> template c "Warning" updU "notification-warning" index title body
+      Success {..} -> template c "Success" updU "notification-success" index title body
 
-    template t updU index title body = VD.h "div" (p_ [("style", "top:" <> show(65 * if index == 0 then 0 else index * 2) <> "px"), ("class", "notification-item-info notification-item-info-" <> show index)])
-      [ block_ "notification-item-info-header" [VD.text $ if null title then t else t <> " :" <> title, closeButton updU index]
-      , block_ "notification-item-info-body" [VD.text body]]
+    attrs cls index = [ ("class", unwords [ "notification-item"
+                                          , "animated"
+                                          , "fadeIn"
+                                          , "notification-item-" <> show index
+                                          , cls])]
+
+    template c t updU cls index title body = VD.h "div" (p_ $ attrs cls index)
+      [ block_ "notification-item-header" $ [VD.h "span" (p_ []) [VD.text $ if null title then t else t <> " : " <> title]] <> 
+                                                 [VD.h "span" (p_ []) [closeAllButton updU] | c > 1, index == 0] <> 
+                                                 [VD.h "span" (p_ []) [closeButton updU index]]
+      , block_ "notification-item-body" [VD.text body]]
+    
+    closeAllButton updU =
+      button "сlose all"
+        [("class", "close-all-button")]
+        [onClick (const(updU RemoveAll >> pure ()))]
         
     closeButton updU index =
-      button "X" 
+      button "×" 
         [("class", "close-button")] 
         [onClick (const (print ("Index for delete => " <> show index) >> updU (RemoveByIdx index) >> pure ()))]

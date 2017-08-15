@@ -24,7 +24,8 @@ data UserInfoQuery = RequestUserInfo String -- XXX FIXME
 data Notification  = 
   Error { title :: String, body :: String } 
   | Info { title :: String, body :: String } 
-  | Warning { title :: String, body :: String } deriving Show
+  | Warning { title :: String, body :: String }
+  | Success { title :: String, body :: String } deriving Show
 
 -- data Notification = forall a . Error String | Info a deriving Show
 
