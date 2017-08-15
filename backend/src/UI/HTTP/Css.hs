@@ -118,7 +118,7 @@ bodyCss = do
     display flex
     "flex-direction" -: "column"
     "box-shadow" -: "0 2px 5px 0 rgba(0, 0, 0, 0.16), 0 2px 10px 0 rgba(0, 0, 0, 0.12)"
-    padding (px 20) (px 11) (px 20) (px 20)
+    padding (px 14) (px 11) (px 20) (px 20)
     margin (rem 0.5) (rem 0) (rem 1) (rem 0)
     borderRadius (px 2) (px 2) (px 2) (px 2)
     background white
@@ -129,33 +129,57 @@ bodyCss = do
     "background-color" -: "#f8d7da"
     "border-color" -: "#f5c6cb"
     "font-weight" -: "400"
+    ".notification-item-body" ? do
+      "color" -: "#721c24"
     ".notification-item-header" ? do
       "color" -: "#721c24"
       "font-weight" -: "400"
+    ".close-all-button" ? do
+      "color" -: "#721c24"
+      "background-color" -: "#f8d7da"
+      "border-color" -: "#f5c6cb"
       
   ".notification-item.notification-warning" ? do
     "background-color" -: "#fff3cd"
     "border-color" -: "#ffeeba"
     "font-weight" -: "400"
+    ".notification-item-body" ? do
+      "color" -: "#856404"
     ".notification-item-header" ? do
       "color" -: "#856404"
       "font-weight" -: "400"
+    ".close-all-button" ? do
+      "color" -: "#856404"
+      "background-color" -: "#fff3cd"
+      "border-color" -: "#ffeeba"
       
   ".notification-item.notification-success" ? do
     "background-color" -: "#d4edda"
     "border-color" -: "#c3e6cb"
     "font-weight" -: "400"
+    ".notification-item-body" ? do
+      "color" -: "#155724"
     ".notification-item-header" ? do
       "color" -: "#155724"
       "font-weight" -: "400"
+    ".close-all-button" ? do
+      "color" -: "#155724"
+      "background-color" -: "#d4edda"
+      "border-color" -: "#c3e6cb"
       
   ".notification-item.notification-info" ? do
     "background-color" -: "#cce5ff"
     "border-color" -: "#b8daff"
     "font-weight" -: "400"
+    ".notification-item-body" ? do
+      "color" -: "#004085"
     ".notification-item-header" ? do
       "color" -: "#004085"
       "font-weight" -: "400"
+    ".close-all-button" ? do
+      "color" -: "#004085"
+      "background-color" -: "#cce5ff"
+      "border-color" -: "#b8daff"
     
   ".notification-item-header" ? do
     textAlign (alignSide sideLeft)
@@ -165,6 +189,7 @@ bodyCss = do
     overflowY auto
     overflowX hidden
     textAlign (alignSide sideLeft)
+    fontSize (px 13)
 
   ".notification-wrapper" ? do
     position fixed
@@ -187,16 +212,19 @@ bodyCss = do
 
   ".close-button" ? do
     "cursor" -: "pointer"
+    "border-radius" -: "2px"
     position absolute
     fontSize (px 24)
-    top (px 3)
-    right (px 10)
+    top (px 5)
+    right (px 6)
     color black
     "outline" -: "none"
     "background-color" -: "transparent"
     "border" -: "none"
     
   ".close-all-button" ? do
+    "cursor" -: "pointer"
+    "border" -: "1px solid transparent"
     top (px 12)
     position absolute
     right (px 40)
