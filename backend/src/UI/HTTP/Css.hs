@@ -108,29 +108,67 @@ bodyCss = do
     transition "all" (ms 200) linear (ms 200)
     fontSize (px 23)
 
-  ".notification-item-info" ? do
+  ".notification-item" ? do
     width (px 360)
-    height (px 80)
+    minHeight (px 80)
+    maxHeight (px 300)
     right (px 20)
     zIndex 10000
-    position fixed
+    position relative
     display flex
     "flex-direction" -: "column"
     "box-shadow" -: "0 2px 5px 0 rgba(0, 0, 0, 0.16), 0 2px 10px 0 rgba(0, 0, 0, 0.12)"
-    padding (px 20) (px 20) (px 20) (px 20)
+    padding (px 20) (px 11) (px 20) (px 20)
     margin (rem 0.5) (rem 0) (rem 1) (rem 0)
     borderRadius (px 2) (px 2) (px 2) (px 2)
     background white
     transition "all" (ms 400) ease (ms 400)
+    "border" -: "1px solid transparent"
 
-  ".notification-item-info-header" ? do
+  ".notification-item.notification-error" ? do
+    "background-color" -: "#f8d7da"
+    "border-color" -: "#f5c6cb"
+    "font-weight" -: "400"
+    ".notification-item-header" ? do
+      "color" -: "#721c24"
+      "font-weight" -: "400"
+      
+  ".notification-item.notification-warning" ? do
+    "background-color" -: "#fff3cd"
+    "border-color" -: "#ffeeba"
+    "font-weight" -: "400"
+    ".notification-item-header" ? do
+      "color" -: "#856404"
+      "font-weight" -: "400"
+      
+  ".notification-item.notification-success" ? do
+    "background-color" -: "#d4edda"
+    "border-color" -: "#c3e6cb"
+    "font-weight" -: "400"
+    ".notification-item-header" ? do
+      "color" -: "#155724"
+      "font-weight" -: "400"
+      
+  ".notification-item.notification-info" ? do
+    "background-color" -: "#cce5ff"
+    "border-color" -: "#b8daff"
+    "font-weight" -: "400"
+    ".notification-item-header" ? do
+      "color" -: "#004085"
+      "font-weight" -: "400"
+    
+  ".notification-item-header" ? do
+    textAlign (alignSide sideLeft)
+    "margin-bottom" -: "10px"
+
+  ".notification-item-body" ? do
+    overflowY auto
+    overflowX hidden
     textAlign (alignSide sideLeft)
 
-  ".notification-item-info-body" ? do
-    overflow hidden
-
   ".notification-wrapper" ? do
-    position relative
+    position fixed
+    right (px 0)
 
   ".notification-wrapper.hide" ? do
     display none
@@ -148,11 +186,20 @@ bodyCss = do
     fontSize (px 14)
 
   ".close-button" ? do
+    "cursor" -: "pointer"
     position absolute
-    top (px 10)
+    fontSize (px 24)
+    top (px 3)
     right (px 10)
-    color white
-    backgroundColor "#b0e57c"
+    color black
+    "outline" -: "none"
+    "background-color" -: "transparent"
+    "border" -: "none"
+    
+  ".close-all-button" ? do
+    top (px 12)
+    position absolute
+    right (px 40)
 
   ".user-icon" ? do
     display inlineBlock
