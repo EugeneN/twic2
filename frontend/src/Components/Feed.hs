@@ -88,11 +88,12 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     Reply t -> do
       print "TODO reply component"
     Love t -> do
-      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <- withBusy busyU $
+      x :: Either String (BL.TheResponse) <- withBusy busyU $
                               getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
       case x of
-        Left e  -> ntU $ Error "Love a tweet failed" e
-        Right _ -> ntU $ Info "Loved the tweet!" ":-)"
+        Left e -> ntU $ Error ":-(" e
+        Right (BL.Nok (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+        Right (BL.Ok _) -> ntU $ Info "Loved the tweet!" ":-)"
 
       print $ "Love result (TODO reply component): " <> show x
 

@@ -65,11 +65,11 @@ retweetToJson (Right t) = fromLazyByteString $ encode t
 
 starToJson :: Either (ApiError String) FeedMessage -> Builder
 starToJson (Left (ApiError msg)) =
-    fromLazyByteString $ encode JsonApiError {errTitle = "Error", errMessage = T.pack msg}
+    fromLazyByteString . encode . Nok $ JsonApiError {errTitle = "Error", errMessage = T.pack msg}
 starToJson (Left (TransportError x)) =
-    fromLazyByteString $ encode JsonApiError {errTitle = "Error", errMessage = T.pack x}
+    fromLazyByteString . encode . Nok $ JsonApiError {errTitle = "Error", errMessage = T.pack x}
 
-starToJson (Right t) = fromLazyByteString $ encode JsonResponse {okTitle="ok", okFeedMessages=[t]}
+starToJson (Right t) = fromLazyByteString . encode . Ok $ JsonResponse {okTitle="ok", okFeedMessages=[t]}
 
 --------------------------------------------------------------------------------
 

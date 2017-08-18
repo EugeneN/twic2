@@ -61,6 +61,9 @@ instance ToJSON FeedMessage
 instance FromJSON JsonResponse
 instance ToJSON JsonResponse
 
+instance FromJSON TheResponse
+instance ToJSON TheResponse
+
 instance FromJSON JsonUserInfo
 instance ToJSON JsonUserInfo
 
