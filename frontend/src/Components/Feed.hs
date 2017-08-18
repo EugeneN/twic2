@@ -77,22 +77,23 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   subscribeToEvent tweetActionE $ \c -> forkIO $ case c of
     Retweet t -> do
-      x :: Either String (Either BL.JsonApiError BL.FeedMessage) <- withBusy busyU $
+      x :: Either String (BL.TheResponse) <- withBusy busyU .
                             getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id_ t)
       case x of
         Left e  -> ntU $ Error "Retweet failed" e
-        Right _ -> ntU $ Info "Retweeted!" ":-)"
+        Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+        Right (BL.Ok _) -> ntU $ Info "Retweeted!" ":-)"
 
       print $ "Retweet result (TODO reply component): " <> show x -- TODO notification component
 
     Reply t -> do
       print "TODO reply component"
     Love t -> do
-      x :: Either String (BL.TheResponse) <- withBusy busyU $
+      x :: Either String (BL.TheResponse) <- withBusy busyU .
                               getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
       case x of
         Left e -> ntU $ Error ":-(" e
-        Right (BL.Nok (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+        Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
         Right (BL.Ok _) -> ntU $ Info "Loved the tweet!" ":-)"
 
       print $ "Love result (TODO reply component): " <> show x

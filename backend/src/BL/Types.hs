@@ -178,7 +178,7 @@ data JsonApiError = JsonApiError { errTitle   :: Text
                                  , errMessage :: Text
                                  } deriving (Show, Generic)
 
-data TheResponse = Ok JsonResponse | Nok JsonApiError deriving (Show, Generic)                               
+data TheResponse = Ok JsonResponse | Fail JsonApiError deriving (Show, Generic)                               
 
 data JsonResponse = JsonResponse { okTitle        :: Text
                                  , okFeedMessages :: FeedState
