@@ -48,7 +48,7 @@ appContainer container anApp = do
   (R.updated vdomDyn) ~> vdomSink
   vdomEvents ~> draw
 
-  whenReady $ const $ vdomSink initialVDom
+  whenReady . const $ vdomSink initialVDom
 
   where
     draw :: (l ~ DOM.Node) => (Maybe (VD.VNode l), Maybe (VD.VNode l)) -> IO ()

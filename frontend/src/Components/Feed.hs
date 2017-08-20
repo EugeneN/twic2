@@ -66,7 +66,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   subscribeToEvent modelE $ \x -> case x of
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
-    otherwise -> pure ()
+    _ -> pure ()
 
   subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
   subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
@@ -123,8 +123,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-            [button "..." [("id", "load-history-tweets-id"), ("class", "history-button")]
-                          [VD.On "click" (void . const (controllerU (ShowOld 1)))]
+            [button "..." (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
+                          [ onClick_ $ controllerU (ShowOld 1) ]
             ]
 
         tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else fmap (block . (: []) . tweet) cur]
@@ -133,10 +133,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           VD.h "div"
             (VD.prop [("class", "refresh")])
             [button (show $ length new)
-                    (unA . A $ if null new
-                      then [("class", "no-new-tweets")]
-                      else [("class", "there-are-new-tweets")])
-                    [VD.On "click" (void . const (controllerU ShowNew >> scrollToTop))]
+                    (p_ [("class", if null new then "no-new-tweets" else "there-are-new-tweets")])
+                    [ onClick_ (controllerU ShowNew >> scrollToTop) ]
             ]
 
         tweet t = panel' $ [ toolbar t, author t, body t ] <> entities (BL.entities t)
@@ -161,17 +159,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         toolbar t = VD.h "span"
                          (p toolbarStyle)
-                         [ flip VD.with [VD.On "click" (\_ -> tweetActionU (Retweet t) >> pure ())] $
-                             VD.h "button" (p toolbarBtnStyle) [VD.text "RT"]
-
-                         , flip VD.with [VD.On "click" (\_ -> tweetActionU (Reply t) >> pure ())] $
-                             VD.h "button" (p toolbarBtnStyle) [VD.text "RE"]
-
-                         , flip VD.with [VD.On "click" (\_ -> tweetActionU (Love t) >> pure ())] $
-                             VD.h "button" (p toolbarBtnStyle) [VD.text "LV"]
-
+                         [ button "RT" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
+                         , button "RE" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
+                         , button "LV" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
                          , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
-                                                              , ("href", "https://twitter.com/xxx/status/" <> (show $ BL.id_ t))])
+                                                              , ("href", "https://twitter.com/xxx/status/" <> show (BL.id_ t))])
                                                               [VD.text "GO"]
                          ]
 
@@ -188,7 +180,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                              [VD.h "a"
                                    (p_ [("href", T.unpack "javascript:void(0)"), ("target", "_blank")])
                                   --  (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
-                                   [flip VD.with [VD.On "click" (void . const (requestUserInfoU (RequestUserInfo $ T.unpack $ BL.screen_name a)))] $
+                                   [flip VD.with [ onClick_ (requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name a))] $
                                        VD.h "img"
                                          (p_ [ ("class", "user-icon-img")
                                              , ("src", BL.profile_image_url a)
@@ -198,11 +190,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                              ]
 
 
-        body t = if isJust (BL.media . BL.entities $ t)
+        body t = block_ "tweet-body" $ if isJust (BL.media . BL.entities $ t)
                     && isLink (DL.last $ BL.text t)
                     && isNothing (resolveLink t . (\(BL.Link s) -> s) . DL.last . BL.text $ t)
-                 then block_ "tweet-body" (fmap (telToHtml t) (DL.init $ BL.text t))
-                 else block_ "tweet-body" (fmap (telToHtml t) (BL.text t))
+                 then fmap (telToHtml t) (DL.init $ BL.text t)
+                 else fmap (telToHtml t) (BL.text t)
 
         telToHtml t (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
 

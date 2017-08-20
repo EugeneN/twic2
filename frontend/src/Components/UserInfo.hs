@@ -88,40 +88,41 @@ userinfoComponent = do
         , "background-size:" <> maybe "auto" (const "cover") userProfileBannerURL ]
 
     closeButton showU modelU =
-      flip VD.with [VD.On "click" (void . const (sequence_ [showU False, modelU (Left "No data yet")] >> pure ()))] $
-      -- flip VD.with [VD.On "click" (void . const (showU False >> modelU (Left "No data yet") >> pure ()))] $
-        VD.h "button"
-             (p_ [("style", DL.intercalate ";" [ "position: absolute"
-                                               , "top: 10px"
-                                               , "right: 10px"
-                                               , "color: white"
-                                               , "background-color: #B0E57C"])])
-             [VD.text "X"]
+      button "X"
+        (p_ [("style", DL.intercalate ";" [ "position: absolute"
+                                          , "top: 10px"
+                                          , "right: 10px"
+                                          , "color: white"
+                                          , "background-color: #B0E57C"])])
+        [ onClick_ (sequence_ [showU False, modelU (Left "No data yet")]) ]
 
     followButton User{..} = maybe
       (VD.text "Unknown status for following")
       (\v -> if not v
-        then flip VD.with [VD.On "click" (void . const (print "follow"))] $
-          VD.h "button"
-               (p_ [("style", DL.intercalate ";" [ "margin-left: 8px"
-                                                 , "cursor: pointer"
-                                                 , "border-radius: 10px"
-                                                 , "border: 0 solid green"
-                                                 , "background-color: #B0E57C"])])
-               [VD.text "Follow"]
-        else VD.text "Follow") userFollowRequestSent
+        then
+          button "Follow"
+            (p_ [("style", DL.intercalate ";" [ "margin-left: 8px"
+                                              , "cursor: pointer"
+                                              , "border-radius: 10px"
+                                              , "border: 0 solid green"
+                                              , "background-color: #B0E57C"])])
+            [ onClick_ $ print "follow" ]
+        else
+          VD.text "Follow") userFollowRequestSent
+
     unFollowButton User{..} = maybe
       (VD.text "Unknown status for following")
       (\x -> if not x
-        then flip VD.with [VD.On "click" (void . const (print "unfollow"))] $
-          VD.h "button"
-               (p_ [("style", DL.intercalate ";" [ "margin-left: 8px"
-                                                 , "cursor: pointer"
-                                                 , "border-radius: 10px"
-                                                 , "border: 0 solid red"
-                                                 , "background-color: #B0E57C"])])
-               [VD.text "Unfollow"]
-        else VD.text "Unfollow") userFollowRequestSent
+        then
+          button "Unfollow"
+            (p_ [("style", DL.intercalate ";" [ "margin-left: 8px"
+                                              , "cursor: pointer"
+                                              , "border-radius: 10px"
+                                              , "border: 0 solid red"
+                                              , "background-color: #B0E57C"])])
+            [ onClick_ $ print "unfollow" ]
+        else
+          VD.text "Unfollow") userFollowRequestSent
 
     popupStyle =  A [("style", DL.intercalate ";" [ "display: block" , "width: 600px" , "text-align: left"
                                                   , "margin: auto" , "overflow: hidden" , "padding: 20px"
@@ -191,10 +192,10 @@ userinfoComponent = do
     render _ _ (_, False) = cont mempty
     render showU modelU (Left e, True) = cont $
       VD.h "div"
-           (p $ A [("class", "user-info"), ("style", userInfoStyleStatic)])
+           (p_ [("class", "user-info"), ("style", userInfoStyleStatic)])
            [closeButton showU modelU, VD.h "div" (p popupStyle) [errorLabel e]]
 
     render showU modelU (Right BL.JsonUserInfo{..}, True) = cont $
       VD.h "div"
-           (p $ A [("class", "user-info"), ("style", userInfoStyleStatic <> userInfoStyleDynamic uiData)])
+           (p_ [("class", "user-info"), ("style", userInfoStyleStatic <> userInfoStyleDynamic uiData)])
            [closeButton showU modelU, renderUser uiData]

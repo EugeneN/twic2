@@ -72,10 +72,10 @@ notificationComponent = do
     
     closeAllButton updU =
       button "сlose all"
-        [("class", "close-all-button")]
-        [onClick (const(updU RemoveAll >> pure ()))]
+        (p_ [("class", "close-all-button")])
+        [ onClick_ $ updU RemoveAll ]
         
     closeButton updU index =
       button "×" 
-        [("class", "close-button")] 
-        [onClick (const (print ("Index for delete => " <> show index) >> updU (RemoveByIdx index) >> pure ()))]
+        (p_ [("class", "close-button")])
+        [ onClick_ $ print ("Index for delete => " <> show index) >> updU (RemoveByIdx index)]

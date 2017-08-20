@@ -73,7 +73,7 @@ link_ h v      = VD.h "a"    (p_ [("href", T.unpack h), ("target", "_blank")])  
 
 button label attrs listeners =
   flip VD.with listeners $
-    VD.h "button" (VD.prop attrs) [VD.text label]
+    VD.h "button" attrs [VD.text label]
 
 foreign import javascript unsafe "$1.target.value"
   jsval :: JSVal -> JSS.JSString
@@ -111,4 +111,5 @@ columns cs =
 
 -- Events (should be Monoid?)
 
-onClick = VD.On "click" 
+onClick = VD.On "click"
+onClick_ f = VD.On "click" (\_ -> f >> pure ())
