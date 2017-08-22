@@ -14,7 +14,7 @@ import Control.Monad                 (void)
 import Control.Monad.IO.Class        (liftIO)
 
 import qualified Data.Aeson          as A
-import Data.Maybe                    (Maybe(..), isJust)
+import Data.Maybe                    (Maybe(..), isNothing)
 import Data.Monoid                   ((<>))
 import qualified Data.Text           as T
 import qualified Data.Text.Encoding  as TE
