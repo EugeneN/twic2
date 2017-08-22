@@ -48,14 +48,14 @@ setupWebsocket socketUrl = do
   liftIO . void $ connectWS wscfg x wsSink 0
 
   wsD' <- R.holdDyn Nothing wsE
-  subscribeToEvent' (R.ffilter (not . isJust) wsE) $
+  subscribeToEvent' (R.ffilter isNothing wsE) .
     const . liftIO . void $ connectWS wscfg x wsSink 1000000
 
   let wssend = \payload -> do
                   wsh <- tryReadMVar x
                   case wsh of
                     Just (Just wsh') -> WS.send (encodeWSMsg payload) wsh' >> pure (Right True)
-                    otherwise        -> return $ Left "ws not ready"
+                    _                -> return $ Left "ws not ready"
 
   let wsi = WSInterface { ws_rcve = wsRcvE
                         , ws_send = wssend }
