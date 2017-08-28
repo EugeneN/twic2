@@ -8,12 +8,12 @@
 module Components.Feed where
 
 import Prelude
-import Control.Applicative           ((<*>), (<$>))
+import Control.Applicative           ((<*>), (<$>), (<|>))
 import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when)
 
 import qualified Data.List           as DL
-import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe)
+import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes)
 import Data.Monoid
 import qualified Data.Set            as Set
 import qualified Data.Text           as T
@@ -151,20 +151,46 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                                                  )
                                           ]
 
-        renderVideo url p = block_ "media video" [ 
-          VD.h "iframe" (p_ $ [("src", url), ("width", "100%"), ("height", "400px")] <> p) []]
+        -- FIXME css
+        renderVideo url p = block_ "media video" [
+          VD.h "iframe" (p_ $ [("src", url), ("width", "600px"), ("height", "430px"), ("style", "margin-left: 50px;")] <> p) []]
         renderYoutube url = renderVideo ("https://www.youtube.com/embed/" <> url <> "?rel=0") [("class", "youtube")]
 
-        youtubePattern = RegExp.create 
-          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True }) 
+        renderInstagram url = block_ "media video"
+          [ VD.h "div" (p_ [("style", "background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:600px; padding:0; width: 600px; margin-left: 50px;")])
+            [ VD.h "div" (p_ [("style", "padding:8px;")])
+              [ VD.h "div" (p_ [("style", "background:#F8F8F8; line-height:0; padding:0; text-align:center; width:100%;")])
+                [ VD.h "img" (p_ [ ("src", "https://instagram.com/p/" <> url <> "/media/?size=l")
+                                 , ("style", "display:block; margin:0; position:relative; top:0; width:100%; height: auto;")]) []
+                ]
+              ]
+            ]
+          ]
+
+        youtubePattern = RegExp.create
+          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
           "^(?:https?:)\\/\\/(?:www.)?youtu(?:.*\\/v\\/|.*v\\=|\\.be\\/)([A-Za-z0-9_\\-]{11})"
 
-        entities e = case BL.media e of
-          Just xs -> flip fmap xs $ \m -> case BL.mType m of
-            "photo" -> renderMediaImage m
-          _ -> flip fmap (BL.urls e) $ \u -> case RegExp.exec (JSS.pack $ BL.eExpandedUrl u) youtubePattern of
-            Just result -> renderYoutube $ JSS.unpack $ head $ RegExp.subMatched result
-            Nothing -> VD.text "" -- TODO: Vimeo, Instagram, etc.
+        instagramPattern = RegExp.create
+          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+          "^(?:https?:)\\/\\/(?:www.)?(?:instagram.com|instagr.am)\\/p\\/([A-Za-z0-9-_]+)"
+
+        entities e = goMedia e <> goUrls e
+          where
+            goMedia e = case BL.media e of
+              Just xs -> flip fmap xs $ \m -> case BL.mType m of
+                "photo" -> renderMediaImage m
+              Nothing -> []
+
+            goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> matchYoutube u <|> matchInstagram u
+
+            matchYoutube u =
+              fmap (renderYoutube . JSS.unpack . head . RegExp.subMatched)
+                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) youtubePattern)
+
+            matchInstagram u =
+              fmap (renderInstagram . JSS.unpack . head . RegExp.subMatched)
+                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) instagramPattern)
 
         toolbarStyle = A [ ("class", "tweet-toolbar") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
