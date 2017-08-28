@@ -180,6 +180,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             goMedia e = case BL.media e of
               Just xs -> flip fmap xs $ \m -> case BL.mType m of
                 "photo" -> renderMediaImage m
+                x       -> VD.text $ "Unknown media type: " <> x
               Nothing -> []
 
             goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> matchYoutube u <|> matchInstagram u
