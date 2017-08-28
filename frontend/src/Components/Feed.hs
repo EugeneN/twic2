@@ -13,6 +13,7 @@ import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when)
 
 import qualified Data.List           as DL
+import Data.Foldable                 (asum)
 import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes)
 import Data.Monoid
 import qualified Data.Set            as Set
@@ -153,8 +154,14 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         -- FIXME css
         renderVideo url p = block_ "media video" [
-          VD.h "iframe" (p_ $ [("src", url), ("width", "600px"), ("height", "430px"), ("style", "margin-left: 50px;")] <> p) []]
+          VD.h "iframe" (p_ $ [ ("src", url)
+                              , ("width", "600px")
+                              , ("height", "430px")
+                              , ("style", "margin-left: 50px;")
+                              , ("frameborder", "0")
+                              , ("allowfullscreen", "")] <> p) []]
         renderYoutube url = renderVideo ("https://www.youtube.com/embed/" <> url <> "?rel=0") [("class", "youtube")]
+        renderVimeo id = renderVideo ("https://player.vimeo.com/video/" <> id) [("class", "vimeo")]
 
         renderInstagram url = block_ "media video"
           [ VD.h "div" (p_ [("style", "background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:600px; padding:0; width: 600px; margin-left: 50px;")])
@@ -175,6 +182,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
           "^(?:https?:)\\/\\/(?:www.)?(?:instagram.com|instagr.am)\\/p\\/([A-Za-z0-9-_]+)"
 
+        vimeoPattern = RegExp.create
+          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+          "^(?:https?:)\\/\\/(?:www\\.|player\\.)?vimeo.com\\/(?:channels\\/(?:\\w+\\/)?|groups\\/(?:[^\\/]*)\\/videos\\/|album\\/(?:\\d+)\\/video\\/|video\\/|)(\\d+)(?:[a-zA-Z0-9_\\-]+)?"
+
         entities e = goMedia e <> goUrls e
           where
             goMedia e = case BL.media e of
@@ -183,15 +194,17 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                 x       -> VD.text $ "Unknown media type: " <> x
               Nothing -> []
 
-            goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> matchYoutube u <|> matchInstagram u
+            goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> asum [ matchYoutube u, matchInstagram u, matchVimeo u ]
+            -- | Youtube                                                                        
+            matchYoutube = matchFn renderYoutube youtubePattern
+            -- | Instagram
+            matchInstagram = matchFn renderInstagram instagramPattern
+            -- | Vimeo
+            matchVimeo = matchFn renderVimeo vimeoPattern
 
-            matchYoutube u =
-              fmap (renderYoutube . JSS.unpack . head . RegExp.subMatched)
-                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) youtubePattern)
-
-            matchInstagram u =
-              fmap (renderInstagram . JSS.unpack . head . RegExp.subMatched)
-                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) instagramPattern)
+            matchFn renderFn p u =
+              fmap (renderFn . JSS.unpack . head . RegExp.subMatched)
+                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)       
 
         toolbarStyle = A [ ("class", "tweet-toolbar") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
