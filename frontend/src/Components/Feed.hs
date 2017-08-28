@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Components.Feed where
 
@@ -23,6 +24,7 @@ import qualified Reflex.Host.App     as RHA
 import qualified Data.VirtualDOM     as VD
 import qualified JavaScript.Web.WebSocket as WS
 import qualified Data.JSString      as JSS
+import qualified Data.JSString.RegExp as RegExp
 
 import qualified BL.Types           as BL
 import BL.Instances
@@ -149,10 +151,20 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                                                  )
                                           ]
 
+        renderVideo url p = block_ "media video" [ 
+          VD.h "iframe" (p_ $ [("src", url), ("width", "100%"), ("height", "400px")] <> p) []]
+        renderYoutube url = renderVideo ("https://www.youtube.com/embed/" <> url <> "?rel=0") [("class", "youtube")]
+
+        youtubePattern = RegExp.create 
+          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True }) 
+          "^(?:https?:)\\/\\/(?:www.)?youtu(?:.*\\/v\\/|.*v\\=|\\.be\\/)([A-Za-z0-9_\\-]{11})"
+
         entities e = case BL.media e of
           Just xs -> flip fmap xs $ \m -> case BL.mType m of
             "photo" -> renderMediaImage m
-          _ -> []
+          _ -> flip fmap (BL.urls e) $ \u -> case RegExp.exec (JSS.pack $ BL.eExpandedUrl u) youtubePattern of
+            Just result -> renderYoutube $ JSS.unpack $ head $ RegExp.subMatched result
+            Nothing -> VD.text "" -- TODO: Vimeo, Instagram, etc.
 
         toolbarStyle = A [ ("class", "tweet-toolbar") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]

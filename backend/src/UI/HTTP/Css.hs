@@ -65,6 +65,9 @@ bodyCss = do
   pre ? do
     display none
 
+  ".video" ? do
+    marginTop (px 30)
+
   ".inline-link" ? do
 --    borderBottom solid (px 1) lightblue
     color entityColor
