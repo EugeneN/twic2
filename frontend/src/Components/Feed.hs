@@ -45,7 +45,7 @@ allButLast n xs = DL.init xs
 last_ n [] = []
 last_ n xs = [DL.last xs]
 
-data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int deriving (Show, Eq)
+data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
 data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
@@ -61,11 +61,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
-  feedD  <- R.foldDyn feedOp ([],[],[]) controllerE
+  feedD  <- R.foldDyn feedOp ([],[],[]) $ R.ffilter isFeedOp controllerE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
+
+  subscribeToEvent (R.ffilter (not . isFeedOp) controllerE) print
 
   subscribeToEvent modelE $ \x -> case x of
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
@@ -111,6 +113,12 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       ShowNew   -> ((unique $ old <> cur), new, [])
       ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new)
 
+    isFeedOp x = case x of
+      AddNew _  -> True
+      ShowNew   -> True
+      ShowOld _ -> True
+      _         -> False
+
     unique = Set.toAscList . Set.fromList
 
     unpackTweet (BL.TweetMessage t) = t
@@ -126,8 +134,12 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-            [button "..." (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
+            [ button "wr" (p_ [("id", "write-new-tweet-id"), ("class", "history-button")])
+                           [ onClick_ $ controllerU WriteNew ]
+            , button "..." (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
                           [ onClick_ $ controllerU (ShowOld 1) ]
+            , button "se" (p_ [("id", "search-tweets-id"), ("class", "history-button")])
+                          [ onClick_ $ controllerU Search ]
             ]
 
         tweetList cur = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else fmap (block . (: []) . tweet) cur]
@@ -195,16 +207,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
               Nothing -> []
 
             goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> asum [ matchYoutube u, matchInstagram u, matchVimeo u ]
-            -- | Youtube                                                                        
             matchYoutube = matchFn renderYoutube youtubePattern
-            -- | Instagram
             matchInstagram = matchFn renderInstagram instagramPattern
-            -- | Vimeo
             matchVimeo = matchFn renderVimeo vimeoPattern
 
             matchFn renderFn p u =
               fmap (renderFn . JSS.unpack . head . RegExp.subMatched)
-                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)       
+                   (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
         toolbarStyle = A [ ("class", "tweet-toolbar") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
