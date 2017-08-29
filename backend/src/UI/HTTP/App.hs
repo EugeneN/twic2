@@ -250,11 +250,8 @@ getAdhocTweetHandler cfg request response = case queryString request of
         adhocTweetStream :: TweetId -> (Builder -> IO ()) -> IO () -> IO ()
         adhocTweetStream id_ send flush = do
             x :: (Feed, Either (ApiError String) Tweet) <- readApi (adhocTweetUrl id_) cfg
-            print x
             send . adhocToJson . fmap (fmap TweetMessage . (: [])) . snd $ x
             flush
-            -- ( AdhocTweet "https://api.twitter.com/1.1/statuses/show/902565892978077696.json?include_my_retweet=1&include_entities=1"
-            -- , Left (ApiError "Error in $: expected [a], encountered Object"))
             -- readApi (adhocTweetUrl id_) cfg >>= send . adhocToJson . fmap (fmap TweetMessage) . snd >> flush
 
 retweetHandler :: Cfg -> Application

@@ -218,7 +218,6 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             ]
 
         tweet t = panel' $ [ toolbar t, author t, body t ] <> entities (BL.entities t)
-        nestedTweet t = panel' $ [ toolbar t, author t, body t ]
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
                                         [link_ (T.pack $ BL.mMediaUrl m)
@@ -254,8 +253,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         renderTweet tid = case HM.lookup (read tid) adhoc of
           Nothing -> block_ "media embedded-tweet" [ VD.text $ "Here will be embedded tweet " <> tid ]
-          -- Just t  -> block_ "media embedded-tweet" [ tweet t ]
-          Just t  -> block_ "media embedded-tweet" [ nestedTweet t ]
+          Just t  -> block_ "media embedded-tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e
           where

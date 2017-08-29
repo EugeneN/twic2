@@ -428,7 +428,6 @@ writeApi url cfg = do
             Left msg -> return $ Left $ ApiError msg
             Right t  -> return $ Right $ TweetMessage t
 
--- readApi :: Feed -> Cfg -> IO (Feed, Either (ApiError String) [Tweet])
 readApi :: FromJSON a => Feed -> Cfg -> IO (Feed, Either (ApiError String) a)
 readApi feed cfg = do
   req <- parseUrl $ unfeedUrl feed

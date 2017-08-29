@@ -576,6 +576,9 @@ bodyCss = do
     ".tweet-body" ? do
       width (px 500)
 
+    ".inline-img" ? do
+      maxWidth (px 500)
+
 usernameCss :: Css
 usernameCss = ".user-name" ? do
   --fontWeight bold
