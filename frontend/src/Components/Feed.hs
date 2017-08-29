@@ -67,7 +67,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   (adhocCmdE :: R.Event t BL.TweetId, adhocCmdU) <- RHA.newExternalEvent
   (adhocE :: R.Event t BL.FeedMessage, adhocU) <- RHA.newExternalEvent
-  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty $ R.fmapMaybe unpackTweets adhocE
+  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty $ fmap filterSelfLinks $ R.fmapMaybe unpackTweets adhocE
 
   subscribeToEvent adhocCmdE $ \id_ -> {-void . forkIO $ -} do
     x :: Either String BL.TheResponse <- withBusy busyU .
@@ -86,7 +86,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
     _ -> pure ()
 
-  subscribeToEvent tweetsE $ \x -> do
+  subscribeToEvent tweetsE $ \x' -> do
+    let x = filterSelfLinks x'
     controllerU (AddNew x)
     preloadEntities adhocCmdU x
     pure ()
@@ -137,6 +138,20 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       _         -> False
 
     unique = Set.toAscList . Set.fromList
+
+    filterSelfLinks t =
+      let es = BL.entities t
+          ls = BL.urls es
+          newUrls = filter (go (BL.id_ t)) ls
+      in t {BL.entities = (es {BL.urls = newUrls})}
+      where
+        go pid u =
+          let m = RegExp.exec (JSS.pack $ BL.eExpandedUrl u) twitterPattern
+          in case m of
+            Just x -> let i = read . JSS.unpack . head . RegExp.subMatched $ x
+                      in if i == pid then False else True
+
+            Nothing -> True
 
     unpackTweets :: BL.FeedMessage -> Maybe BL.Tweet
     unpackTweets (BL.TweetMessage t) = Just t
