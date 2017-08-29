@@ -141,7 +141,7 @@ bodyCss = do
       "color" -: "#721c24"
       "background-color" -: "#f8d7da"
       "border-color" -: "#f5c6cb"
-      
+
   ".notification-item.notification-warning" ? do
     "background-color" -: "#fff3cd"
     "border-color" -: "#ffeeba"
@@ -155,7 +155,7 @@ bodyCss = do
       "color" -: "#856404"
       "background-color" -: "#fff3cd"
       "border-color" -: "#ffeeba"
-      
+
   ".notification-item.notification-success" ? do
     "background-color" -: "#d4edda"
     "border-color" -: "#c3e6cb"
@@ -169,7 +169,7 @@ bodyCss = do
       "color" -: "#155724"
       "background-color" -: "#d4edda"
       "border-color" -: "#c3e6cb"
-      
+
   ".notification-item.notification-info" ? do
     "background-color" -: "#cce5ff"
     "border-color" -: "#b8daff"
@@ -183,7 +183,7 @@ bodyCss = do
       "color" -: "#004085"
       "background-color" -: "#cce5ff"
       "border-color" -: "#b8daff"
-    
+
   ".notification-item-header" ? do
     textAlign (alignSide sideLeft)
     "margin-bottom" -: "10px"
@@ -224,7 +224,7 @@ bodyCss = do
     "outline" -: "none"
     "background-color" -: "transparent"
     "border" -: "none"
-    
+
   ".close-all-button" ? do
     "cursor" -: "pointer"
     "border" -: "1px solid transparent"
@@ -560,6 +560,21 @@ bodyCss = do
     position fixed
     bottom (px 10)
     right (px 10)
+
+  ".embedded-tweet" ? do
+    background white
+    border solid (px 0) transparent
+    borderRadius (px 3) (px 3) (px 3) (px 3)
+    "box-shadow" -: "0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15) "
+    margin (px 0) (px 0) (px 0) (px 0)
+    maxWidth (px 600)
+    padding (px 0) (px 0) (px 0) (px 0)
+    width  (px 600)
+    marginLeft (px 50)
+    marginTop (px 30)
+
+    ".tweet-body" ? do
+      width (px 500)
 
 usernameCss :: Css
 usernameCss = ".user-name" ? do

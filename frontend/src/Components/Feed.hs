@@ -168,7 +168,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
     preloadEntities adhocCmdU t = void . forkIO $
-      forM_ (BL.urls . BL.entities $ t) $ matchEntity (adhocCmdU . read) twitterPattern
+      forM_ (BL.urls . BL.entities $ t) $ matchEntity (go (BL.id_ t) adhocCmdU) twitterPattern
+
+      where
+        go pid adhocCmdU x = do
+          let y = read x
+          when (y /= pid) $ adhocCmdU y >> pure ()
+          -- TODO skip loading if already cached
 
     render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> (Feed, HM.HashMap BL.TweetId BL.Tweet) -> VD.VNode l
     render controllerU requestUserInfoU tweetActionU ((old, cur, new), adhoc) =
@@ -197,6 +203,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             ]
 
         tweet t = panel' $ [ toolbar t, author t, body t ] <> entities (BL.entities t)
+        nestedTweet t = panel' $ [ toolbar t, author t, body t ]
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
                                         [link_ (T.pack $ BL.mMediaUrl m)
@@ -231,8 +238,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           ]
 
         renderTweet tid = case HM.lookup (read tid) adhoc of
-          Nothing -> block_ "media tweet" [ VD.text $ "Here will be embedded tweet " <> tid ]
-          Just t  -> block_ "media tweet" [ tweet t ]
+          Nothing -> block_ "media embedded-tweet" [ VD.text $ "Here will be embedded tweet " <> tid ]
+          -- Just t  -> block_ "media embedded-tweet" [ tweet t ]
+          Just t  -> block_ "media embedded-tweet" [ nestedTweet t ]
 
         entities e = goMedia e <> goUrls e
           where
