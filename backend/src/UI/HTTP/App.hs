@@ -9,16 +9,17 @@ import           BL.Core                             (fetchContext, followUser,
                                                       readUserInfo,
                                                       readUserstream, replyUrl,
                                                       retweetUrl, saveLastSeen,
+                                                      adhocTweetUrl,
                                                       saveLastSeenAsync,
                                                       sendFetchAccountRequest,
                                                       starUrl, tweetUrl,
                                                       unfollowUser, updateFeed,
-                                                      writeApi)
+                                                      writeApi, readApi)
 import           BL.DataLayer                        (MyDb)
 import           BL.Types                            (FeedState, Message (..),
                                                       ScreenName, Tweet, Cfg,
                                                       TweetBody, TweetId,
-                                                      UpdateMessage)
+                                                      UpdateMessage, FeedMessage(..))
 import           Blaze.ByteString.Builder            (Builder, fromByteString)
 import           Config                              (heartbeatDelay)
 import           Control.Applicative                 ((<$>))
@@ -60,7 +61,7 @@ import           UI.HTTP.Json                        (justFeedMessagesToJson,
                                                       justUserInfoToJson,
                                                       justUserToJson,
                                                       retweetToJson, starToJson,
-                                                      tweetToJson)
+                                                      tweetToJson, adhocToJson)
 
 import           Blaze.ByteString.Builder.ByteString (fromByteString)
 import           Data.FileEmbed                      (embedFile,
@@ -122,6 +123,7 @@ httpapp st db cfg request sendResponse = do
 
     path -> case Prelude.head path of
       "retweet"  -> retweetHandler      cfg request sendResponse
+      "adhoc"    -> getAdhocTweetHandler cfg request sendResponse
       "star"     -> starHandler         cfg request sendResponse
       "tweet"    -> tweetHandler        cfg request sendResponse
       "reply"    -> replyHandler        cfg request sendResponse
@@ -228,6 +230,24 @@ staticHandler mime fn request response = response $ responseFile status200 mime 
 
 notFoundHandler :: Application
 notFoundHandler request response = response $ responseLBS status200 [mimeText] "Unknown path"
+
+getAdhocTweetHandler :: Cfg -> Application
+getAdhocTweetHandler cfg request response = case queryString request of
+    [("id", Just id_)] -> case B8.readInteger id_ of
+          Just (int, str) -> do
+            debug $ "got adhoc tweet request for: " ++ show id_
+            response $ responseStream status200 [mimeJSON] (adhocTweetStream (fromIntegral int :: Int64))
+
+          Nothing -> do
+            error ("bad retweet id" :: String)
+            response $ responseLBS status200 [mimeJSON] "bad adhoc id"
+
+    _ -> response $ responseLBS status200 [mimeJSON] "bad request"
+
+    where
+        adhocTweetStream :: TweetId -> (Builder -> IO ()) -> IO () -> IO ()
+        adhocTweetStream id_ send flush =
+            readApi (adhocTweetUrl id_) cfg >>= send . adhocToJson . fmap (fmap TweetMessage) . snd >> flush
 
 retweetHandler :: Cfg -> Application
 retweetHandler cfg request response = case queryString request of

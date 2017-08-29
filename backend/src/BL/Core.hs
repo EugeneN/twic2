@@ -27,6 +27,7 @@ module BL.Core (
   , readUserstream
   , readUserInfo
   , retweetUrl
+  , adhocTweetUrl
   , followUser
   , unfollowUser
   , getRunTime
@@ -181,6 +182,9 @@ retweetUrl x = "https://api.twitter.com/1.1/statuses/retweet/" ++ show x ++ ".js
 
 starUrl :: TweetId -> Url
 starUrl x = "https://api.twitter.com/1.1/favorites/create.json?id=" ++ show x
+
+adhocTweetUrl :: TweetId -> Feed
+adhocTweetUrl x = AdhocTweet $ "https://api.twitter.com/1.1/statuses/show/" ++ show x ++ ".json?include_my_retweet=1&include_entities=1"
 
 tweetUrl :: TweetBody -> Url
 tweetUrl status = "https://api.twitter.com/1.1/statuses/update.json?status=" ++ B8.unpack status
@@ -446,6 +450,7 @@ readApi feed cfg = do
     unfeedUrl :: Feed -> Url
     unfeedUrl (UserTimeline u) = u
     unfeedUrl (HomeTimeline u) = u
+    unfeedUrl (AdhocTweet u)   = u
 
 getRunTime :: UTCTime -> IO NominalDiffTime
 getRunTime st = do

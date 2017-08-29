@@ -51,3 +51,4 @@ executable twic2ui
                      , reflex-host
                      , ghcjs-prim
                      , mtl
+                     , unordered-containers

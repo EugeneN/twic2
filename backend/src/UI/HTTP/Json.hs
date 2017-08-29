@@ -60,6 +60,16 @@ retweetToJson (Left (TransportError x)) =
     fromLazyByteString $ encode JsonApiError {errTitle = "Error", errMessage = T.pack x}
 
 retweetToJson (Right t) = fromLazyByteString . encode . Ok $ JsonResponse {okTitle="ok", okFeedMessages=[t]}
+--------------------------------------------------------------------------------
+
+adhocToJson :: Either (ApiError String) [FeedMessage] -> Builder
+adhocToJson (Left (ApiError msg)) =
+    fromLazyByteString $ encode JsonApiError {errTitle = "Error", errMessage = T.pack msg}
+
+adhocToJson (Left (TransportError x)) =
+    fromLazyByteString $ encode JsonApiError {errTitle = "Error", errMessage = T.pack x}
+
+adhocToJson (Right ts) = fromLazyByteString . encode . Ok $ JsonResponse {okTitle="ok", okFeedMessages=ts}
 
 --------------------------------------------------------------------------------
 

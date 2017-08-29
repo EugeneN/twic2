@@ -12,6 +12,7 @@ import Control.Applicative           ((<*>), (<$>), (<|>))
 import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when)
 
+import qualified Data.HashMap.Strict as HM
 import qualified Data.List           as DL
 import Data.Foldable                 (asum)
 import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes)
@@ -64,6 +65,18 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   feedD  <- R.foldDyn feedOp ([],[],[]) $ R.ffilter isFeedOp controllerE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
+  (adhocCmdE :: R.Event t BL.TweetId, adhocCmdU) <- RHA.newExternalEvent
+  (adhocE :: R.Event t BL.FeedMessage, adhocU) <- RHA.newExternalEvent
+  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty $ R.fmapMaybe unpackTweets adhocE
+
+  subscribeToEvent adhocCmdE $ \id_ -> {-void . forkIO $ -} do
+    x :: Either String BL.TheResponse <- withBusy busyU .
+                            getAPI . JSS.pack $ "/adhoc/?id=" <> show id_
+    case x of
+      Left e  -> (ntU $ Error "Adhoc request failed" e) >> pure ()
+      Right (BL.Fail (BL.JsonApiError t m)) -> (ntU $ Error (T.unpack t) (T.unpack m)) >> pure ()
+      Right (BL.Ok (BL.JsonResponse _ ts)) -> forM_ ts adhocU
+
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
 
@@ -73,7 +86,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
     _ -> pure ()
 
-  subscribeToEvent tweetsE $ \x -> controllerU (AddNew x) >> pure ()
+  subscribeToEvent tweetsE $ \x -> do
+    controllerU (AddNew x)
+    preloadEntities adhocCmdU x
+    pure ()
+
   subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
     setTitle $ case length new of
                   0 -> "No new tweets"
@@ -103,7 +120,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
       print $ "Love result (TODO reply component): " <> show x
 
-  let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) feedD
+  let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) ((,) <$> feedD <*> adhocD)
 
   return (ownViewDyn, pure (Counter 0))
 
@@ -121,13 +138,40 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
     unique = Set.toAscList . Set.fromList
 
+    unpackTweets :: BL.FeedMessage -> Maybe BL.Tweet
+    unpackTweets (BL.TweetMessage t) = Just t
+    unpackTweets _ = Nothing
+
     unpackTweet (BL.TweetMessage t) = t
 
     isTweet (BL.TweetMessage _) = True
     isTweet _                   = False
 
-    render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> Feed -> VD.VNode l
-    render controllerU requestUserInfoU tweetActionU (old, cur, new) =
+    youtubePattern = RegExp.create
+      (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+      "^(?:https?:)\\/\\/(?:www.)?youtu(?:.*\\/v\\/|.*v\\=|\\.be\\/)([A-Za-z0-9_\\-]{11})"
+
+    instagramPattern = RegExp.create
+      (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+      "^(?:https?:)\\/\\/(?:www.)?(?:instagram.com|instagr.am)\\/p\\/([A-Za-z0-9-_]+)"
+
+    vimeoPattern = RegExp.create
+      (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+      "^(?:https?:)\\/\\/(?:www\\.|player\\.)?vimeo.com\\/(?:channels\\/(?:\\w+\\/)?|groups\\/(?:[^\\/]*)\\/videos\\/|album\\/(?:\\d+)\\/video\\/|video\\/|)(\\d+)(?:[a-zA-Z0-9_\\-]+)?"
+
+    twitterPattern = RegExp.create
+      (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
+      "^(?:https?:)\\/\\/twitter.com\\/(?:i\\/web|[A-Za-z0-9_]+)\\/status\\/([0-9]+)"
+
+    matchEntity c p u =
+      mapM_ (c . JSS.unpack . head . RegExp.subMatched)
+            (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
+
+    preloadEntities adhocCmdU t = void . forkIO $
+      forM_ (BL.urls . BL.entities $ t) $ matchEntity (adhocCmdU . read) twitterPattern
+
+    render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> (Feed, HM.HashMap BL.TweetId BL.Tweet) -> VD.VNode l
+    render controllerU requestUserInfoU tweetActionU ((old, cur, new), adhoc) =
       block [historyButton, tweetList cur, refreshButton new]
 
       where
@@ -186,17 +230,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             ]
           ]
 
-        youtubePattern = RegExp.create
-          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
-          "^(?:https?:)\\/\\/(?:www.)?youtu(?:.*\\/v\\/|.*v\\=|\\.be\\/)([A-Za-z0-9_\\-]{11})"
-
-        instagramPattern = RegExp.create
-          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
-          "^(?:https?:)\\/\\/(?:www.)?(?:instagram.com|instagr.am)\\/p\\/([A-Za-z0-9-_]+)"
-
-        vimeoPattern = RegExp.create
-          (RegExp.REFlags { RegExp.multiline = True, RegExp.ignoreCase = True })
-          "^(?:https?:)\\/\\/(?:www\\.|player\\.)?vimeo.com\\/(?:channels\\/(?:\\w+\\/)?|groups\\/(?:[^\\/]*)\\/videos\\/|album\\/(?:\\d+)\\/video\\/|video\\/|)(\\d+)(?:[a-zA-Z0-9_\\-]+)?"
+        renderTweet tid = case HM.lookup (read tid) adhoc of
+          Nothing -> block_ "media tweet" [ VD.text $ "Here will be embedded tweet " <> tid ]
+          Just t  -> block_ "media tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e
           where
@@ -206,10 +242,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                 x       -> VD.text $ "Unknown media type: " <> x
               Nothing -> []
 
-            goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> asum [ matchYoutube u, matchInstagram u, matchVimeo u ]
+            goUrls e = catMaybes $ flip fmap (BL.urls e) $ \u -> asum [ matchYoutube u, matchInstagram u, matchVimeo u, matchTwitter u ]
             matchYoutube = matchFn renderYoutube youtubePattern
             matchInstagram = matchFn renderInstagram instagramPattern
             matchVimeo = matchFn renderVimeo vimeoPattern
+            matchTwitter = matchFn renderTweet twitterPattern
 
             matchFn renderFn p u =
               fmap (renderFn . JSS.unpack . head . RegExp.subMatched)
