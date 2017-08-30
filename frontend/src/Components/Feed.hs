@@ -67,9 +67,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   (adhocCmdE :: R.Event t BL.TweetId, adhocCmdU) <- RHA.newExternalEvent
   (adhocE :: R.Event t BL.FeedMessage, adhocU) <- RHA.newExternalEvent
-  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty $ fmap filterSelfLinks $ R.fmapMaybe unpackTweets adhocE
 
-  subscribeToEvent adhocCmdE $ \id_ -> {-void . forkIO $ -} do
+  let adhocE' = fmap filterSelfLinks $ R.fmapMaybe unpackTweets adhocE
+  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty adhocE'
+
+  subscribeToEvent adhocE' $ preloadEntities adhocCmdU
+
+  subscribeToEvent adhocCmdE $ \id_ -> void . forkIO $ do
     x :: Either String BL.TheResponse <- withBusy busyU .
                             getAPI . JSS.pack $ "/adhoc/?id=" <> show id_
     case x of
@@ -252,7 +256,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           ]
 
         renderTweet tid = case HM.lookup (read tid) adhoc of
-          Nothing -> block_ "media embedded-tweet" [ VD.text $ "Here will be embedded tweet " <> tid ]
+          Nothing -> block_ "media embedded-tweet" [ VD.text $ "Embedded tweet " <> tid ]
           Just t  -> block_ "media embedded-tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e

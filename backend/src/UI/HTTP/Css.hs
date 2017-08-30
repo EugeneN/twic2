@@ -579,6 +579,11 @@ bodyCss = do
     ".inline-img" ? do
       maxWidth (px 500)
 
+    ".youtube" ? do
+      maxWidth (px 500)
+      width (px 500)
+      height auto
+
 usernameCss :: Css
 usernameCss = ".user-name" ? do
   --fontWeight bold
