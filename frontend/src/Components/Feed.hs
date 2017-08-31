@@ -10,7 +10,7 @@ module Components.Feed where
 import Prelude
 import Control.Applicative           ((<*>), (<$>), (<|>))
 import Control.Concurrent            (forkIO)
-import Control.Monad                 (void, forM_, when)
+import Control.Monad                 (void, forM_, when, join)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List           as DL
@@ -102,34 +102,38 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                   1 -> "1 new tweet"
                   x -> show x <> " new tweets"
 
-  subscribeToEvent tweetActionE $ \c -> forkIO $ case c of
+  subscribeToEvent tweetActionE $ \c -> forkIO . void $ case c of
     Retweet t -> do
       x :: Either String (BL.TheResponse) <- withBusy busyU .
                             getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id_ t)
       case x of
         Left e  -> ntU $ Error "Retweet failed" e
         Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-        Right (BL.Ok _) -> ntU $ Info "Retweeted!" ":-)"
-
-      print $ "Retweet result (TODO reply component): " <> show x -- TODO notification component
+        Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Retweeted!" (mkTweetLink fs)
 
     Reply t -> do
-      print "TODO reply component"
+      print "TODO reply component" >> pure False
+
     Love t -> do
       x :: Either String (BL.TheResponse) <- withBusy busyU .
                               getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
       case x of
         Left e -> ntU $ Error ":-(" e
         Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-        Right (BL.Ok _) -> ntU $ Info "Loved the tweet!" ":-)"
-
-      print $ "Love result (TODO reply component): " <> show x
+        Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Loved the tweet!" (mkTweetLink fs)
 
   let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) ((,) <$> feedD <*> adhocD)
 
   return (ownViewDyn, pure (Counter 0))
 
   where
+    mkTweetLink fs =
+      let t' = join $ fmap unpackTweets $ listToMaybe fs
+      in maybe ":-)"
+               (\t -> "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t)
+                                                <> "/status/" <> show (BL.id_ t))
+               t'
+
     feedOp op (old, cur, new) = case op of
       AddNew t  -> (old, cur, (unique $ new <> [t]))
       ShowNew   -> ((unique $ old <> cur), new, [])
