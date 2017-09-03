@@ -138,6 +138,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       AddNew t  -> (old, cur, (unique $ new <> [t]))
       ShowNew   -> ((unique $ old <> cur), new, [])
       ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new)
+      _         -> (old, cur, new)
 
     isFeedOp x = case x of
       AddNew _  -> True

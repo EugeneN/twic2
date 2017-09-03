@@ -84,7 +84,7 @@ runManager = monitorAppBus
         cmd <- takeMVar av
         case cmd of
             MReloadFeed -> do
-                info "Reloading feed"
+                info "⚡⚡⚡⚡ Reloading feed"
                 restartStreamWorker rs
                 BLC.updateFeed uv
 
@@ -110,11 +110,11 @@ runManager = monitorAppBus
         (RunState st db twi maybeSwi hwi uvi afwi fv av uv accv cfg) <- readMVar rs
         case maybeSwi of
             Just swi -> do
-                info "Killing old stream worker... "
+                info "☒☒☒☒ Killing old stream worker... "
                 killThread swi
                 info "done"
 
-                info "Starting new stream worker... "
+                info "☑☑☑☑ Starting new stream worker... "
                 newWorkerId <- streamWorker db fv cfg
                 info "done"
 

@@ -62,6 +62,7 @@ Executable twic
     , twitter-types-lens
     , conduit-extra
     , conduit
+    , conduit-combinators
     , twitter-types           >= 0.7.0
     , unordered-containers
     , uuid
@@ -74,3 +75,4 @@ Executable twic
     , configurator
     , lens-action
     , lens
+    , resourcet

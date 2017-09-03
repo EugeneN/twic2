@@ -7,6 +7,9 @@ buildroot := $(shell pwd)
 default:
 	cat README.md
 
+repl:
+	cd backend  && stack ghci --no-load
+	
 setup:
 	cd backend  && stack setup --install-ghc --no-system-ghc
 	cd frontend && stack setup --install-ghc --no-system-ghc

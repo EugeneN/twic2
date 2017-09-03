@@ -53,5 +53,4 @@ appContainer container anApp = do
   where
     draw :: (l ~ DOM.Node) => (Maybe (VD.VNode l), Maybe (VD.VNode l)) -> IO ()
     draw (newVdom, oldVdom) = void . forkIO $ do
-      print $ "draw " <> show newVdom
       VD.patch VD.domAPI container oldVdom newVdom
