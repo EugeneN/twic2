@@ -37,50 +37,48 @@ import Lib.Net (getAPI)
 
 data ReplyInfo = ReplyInfo { status :: String, replyTo :: String } deriving Show
 
+type WidgetT r i o = Sink o -> i -> r
+type Widget i o = forall l . WidgetT (VD.VNode l) i o
+
+data Submit a = DontSubmit a | Submit a deriving Show
+
+formComponent :: (RHA.MonadAppHost t m, MonadFix m, Show a) => a -> Widget a (Submit a) -> m (R.Dynamic t (VD.VNode l), R.Event t a)
+formComponent z w = do
+  (aE :: R.Event t (Submit a), aU) <- RHA.newExternalEvent
+  aS <- R.holdDyn (DontSubmit z) aE
+  let v = fmap (w aU . unpackSubmit) aS
+  return (v, passSubmitsOnly aE)
+
+  where
+    unpackSubmit :: Submit a -> a
+    unpackSubmit (DontSubmit x) = x
+    unpackSubmit (Submit x)     = x
+
+    passSubmitsOnly :: R.Reflex t => R.Event t (Submit a) -> R.Event t a
+    passSubmitsOnly = R.fmapMaybe g
+      where
+        g (Submit x) = Just x
+        g _          = Nothing
+
 newReplyComponent :: (RHA.MonadAppHost t m, MonadFix m) => Sink Notification -> m (R.Dynamic t (VD.VNode l), Sink TweetAction)
 newReplyComponent ntU = do
-    (showE :: R.Event t Bool, showU) <- RHA.newExternalEvent -- show/hide form
-    showD <- R.holdDyn False showE
     (queryE :: R.Event t TweetAction, queryU) <- RHA.newExternalEvent -- get info about user from tweet
-    (modelE :: R.Event t ReplyInfo, modelU) <- RHA.newExternalEvent -- model
-    modelD <- R.holdDyn (ReplyInfo "" "") modelE
-    (submitE :: R.Event t (Bool, ReplyInfo), submitU) <- RHA.newExternalEvent -- submit
-    -- submitD <- R.holdDyn (False, ("", "")) submitE
 
-    subscribeToEvent submitE $ \s -> do
-        ntU $ Info "newReplyComponent => subscribeToEvent" $ show s
-        pure ()
-        -- case s of
-        --     -- (True, (status@(DL.null -> False), replyTo@(DL.null -> False))) -> do
-        --     --     void . forkIO $ do
-        --     --         print $ show (status, replyTo)
-        --     --         -- liftIO . getAPI . JSS.pack $ "http://localhost:3000/reply?status=" <> status <> "&reply_to" <> replyTo
-        --     --         pure ()
-        --     (True, ri) -> print ("newReplyComponent => " <> show ri) >> pure ()
-        --     _ -> pure ()
+    (v, sE) <- formComponent "" w
 
-    subscribeToEvent queryE $ \r -> do
-        showU True
-        case r of
-            Reply (t@BL.Tweet {..}) -> modelU (ReplyInfo "" (T.unpack $ BL.screen_name $ user)) >> pure ()
-
-    -- subscribeToEvent queryE $ \r -> do
-    --     case r of
-    --         (Reply (BL.Tweet t)) -> do
-    --             showU True
-    --             void . forkIO $ do
-    --                 liftIO . getAPI . JSS.pack $ "http://localhost:3000/reply?status=test&reply_to" <> (BL.screen_name $ BL.user t)
-    --                 pure ()
-    --         _ -> pure ()
-
-    let v = (render showU modelU submitU) <$> showD <*> modelD
+    subscribeToEvent sE $ \x -> do
+      print $ "Got submit: " <> x
+      -- queryU $ ReplyInfo x ?
 
     return (v, queryU)
 
     where
-        cont x = VD.h "div" (p_ [("id", "new-reply-container"), ("style", "margin-bottom:500px")]) [x]
-        render _ _ _ False (ReplyInfo "" "") = cont mempty
-        render showU modelU submitU True ri@(ReplyInfo {..}) = cont $
-            block [ block [flip VD.with [VD.On "input" (\ev -> modelU (ri { status = JSS.unpack . jsval $ ev }) >> pure ())] $ VD.h "textarea" (VD.prop []) []]
-                  , block [button "Reply" (p_ [("class", "new-reply")]) [ onClick_ $ submitU (True, ri) ]]]
+        w :: Widget String (Submit String)
+        w u x =
+          cont $
+             block [ block [flip VD.with [VD.On "input" (\ev -> void $ u (DontSubmit . JSS.unpack . jsval $ ev))]
+                                         $ VD.h "textarea" (VD.prop []) [VD.text x] ]
+                   , block [button "Reply" (p_ [("class", "new-reply")]) [ onClick_ $ u (Submit x) ]]
+                   ]
 
+        cont x = VD.h "div" (p_ [("id", "new-reply-container"), ("style", "margin-bottom:500px")]) [x]
