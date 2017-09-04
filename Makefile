@@ -17,6 +17,16 @@ setup:
 backend: frontend
 	(cd backend && stack build)
 
+backend-dev:
+	cd backend && stack build --fast --file-watch
+
+frontend-dev:
+	cd frontend \
+	  && stack build --fast --file-watch \
+	  && cp `stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/all.js ../webexe/Main.js \
+	  && cp `stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/* ../webexe/ \
+		&& echo "Installed jsexe to ./webexe/"
+
 frontend:
 	cd frontend \
 	  && stack build \

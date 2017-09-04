@@ -46,17 +46,14 @@ allButLast n xs = DL.init xs
 last_ n [] = []
 last_ n xs = [DL.last xs]
 
-data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
-data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
-type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
-
 feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
               -> Sink UserInfoQuery
               -> Sink Notification
               -> Sink BusyCmd
+              -> Sink TweetAction
               -> TheApp t m l Counter
-feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
+feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU newReplyU = do
   (tweetActionE :: R.Event t TweetAction, tweetActionU) <- RHA.newExternalEvent
   (controllerE :: R.Event t FeedAction, controllerU) <- RHA.newExternalEvent
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
@@ -112,7 +109,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Retweeted!" (mkTweetLink fs)
 
     Reply t -> do
-      print "TODO reply component" >> pure False
+      print ("TODO reply component => " <> show t) >> pure False
 
     Love t -> do
       x :: Either String (BL.TheResponse) <- withBusy busyU .
@@ -288,7 +285,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         toolbar t = VD.h "span"
                          (p toolbarStyle)
                          [ button "RT" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
-                         , button "RE" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
+                         , button "RE" (p toolbarBtnStyle) [ onClick_ $ newReplyU (Reply t) ]
                          , button "LV" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
                          , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
                                                               , ("href", "https://twitter.com/xxx/status/" <> show (BL.id_ t))])

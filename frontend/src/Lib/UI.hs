@@ -113,3 +113,4 @@ columns cs =
 
 onClick = VD.On "click"
 onClick_ f = VD.On "click" (\_ -> f >> pure ())
+-- onChange_ f = VD.On "change" (pure () << f . JSS.unpack . jsval)

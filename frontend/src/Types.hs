@@ -39,6 +39,10 @@ type Sink a               = a -> IO Bool
 
 type ViewDyn t l     = R.Dynamic t (VD.VNode l)
 
+data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
+data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
+type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
+
 data ChildAction     = Reset deriving (Eq)
 
 data WSData = WSData BL.FeedState | WSCommand String deriving (Show)

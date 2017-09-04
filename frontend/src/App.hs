@@ -33,6 +33,7 @@ import Components.Feed                (feedComponent)
 import Components.UserInfo            (userinfoComponent)
 import Components.Notification        (notificationComponent)
 import Components.Busy                (busyComponent)
+import Components.NewReply            (newReplyComponent)
 
 
 data AppBLAction = Something deriving (Show, Eq)
@@ -49,12 +50,18 @@ theApp = do
   (notificationComponentViewD, ntU) <- notificationComponent
   (busyComponentViewD, busyU) <- busyComponent ntU
   (userinfoComponentViewD, requestUserInfoU) <- userinfoComponent
-  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU busyU
+  (newReplyComponentViewD, newReplyU) <- newReplyComponent ntU
+  (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU busyU newReplyU
 
-  let resultViewDyn = layout <$> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
+  let resultViewDyn = layout
+        <$> notificationComponentViewD
+        <*> feedComponentViewD
+        <*> userinfoComponentViewD
+        <*> busyComponentViewD
+        <*> newReplyComponentViewD
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    layout notification feed userinfo busy =
-      notification <> columns [(feed, 100)] <> userinfo <> busy
+    layout notification feed userinfo busy newReply =
+      notification <> columns [(feed, 100)] <> userinfo <> busy <> newReply
