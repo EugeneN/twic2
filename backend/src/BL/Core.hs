@@ -304,7 +304,7 @@ unfollowUser sn = followUnfollowUser sn (friendshipsDestroy (ScreenNameParam sn)
 
 followUnfollowUser sn req cfg = withManager $ \mgr -> do
     res0 <- liftIO $ callWithResponse (twInfo cfg) mgr req
-    liftIO $ print $ Web.Twitter.Conduit.responseStatus res0
+    liftIO . debug . show $ Web.Twitter.Conduit.responseStatus res0
 
     case Web.Twitter.Conduit.responseStatus res0 of
         HTTP.Status {statusCode = 200, statusMessage = _ } -> do

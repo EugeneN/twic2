@@ -19,6 +19,8 @@ import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe,
 import Data.Monoid
 import qualified Data.Set            as Set
 import qualified Data.Text           as T
+import qualified Data.Text.Lazy.Builder as TLB
+import qualified Data.Text.Lazy      as TL
 
 import qualified Reflex              as R
 import qualified Reflex.Host.App     as RHA
@@ -27,6 +29,8 @@ import qualified Data.VirtualDOM     as VD
 import qualified JavaScript.Web.WebSocket as WS
 import qualified Data.JSString      as JSS
 import qualified Data.JSString.RegExp as RegExp
+
+import qualified HTMLEntities.Decoder as HE
 
 import qualified BL.Types           as BL
 import BL.Instances
@@ -327,13 +331,15 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU newRep
             Nothing -> inlineLabel_ $ link' "inline-link" s s
             Just x  -> inlineLabel_ $ link' "inline-link" (T.pack $ BL.eExpandedUrl x) (T.pack $ BL.eDisplayUrl x)
 
-        telToHtml t (BL.PlainText s)  = inlineLabel s
+        telToHtml t (BL.PlainText s)  = inlineLabel $ decodeHtmlEntities $ s
         telToHtml t (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
         telToHtml t BL.Retweet        = inlineLabel "Retweet"
         telToHtml t (BL.Spaces s)     = inlineLabel s
         telToHtml t (BL.Unparsable s) = inlineLabel s
 
         resolveLink t s = listToMaybe $ filter ((s ==) . T.pack . BL.eUrl) (BL.urls . BL.entities $ t)
+
+        decodeHtmlEntities = TL.toStrict . TLB.toLazyText . HE.htmlEncodedText
 
         isLink (BL.Link _) = True
         isLink _           = False

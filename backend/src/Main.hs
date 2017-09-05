@@ -29,6 +29,7 @@ import           System.Log.Formatter
 import           System.Log.Handler        (setFormatter)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
+import           System.IO                 (stderr)
 
 import qualified BL.CloudDataLayer         as CDL
 import qualified Control.Exception         as E
@@ -221,12 +222,17 @@ main :: IO ()
 main = do
   updateGlobalLogger rootLoggerName (setLevel DEBUG)
 
-  h <- E.try $ fileHandler logFile DEBUG >>= \lh -> return $
-    setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
+  updateGlobalLogger rootLoggerName removeHandler
+  stderrLogger <- streamHandler stderr DEBUG >>= \lh -> return $
+                    setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
+  updateGlobalLogger rootLoggerName (addHandler stderrLogger)
 
-  case h of
+  fileLogger <- E.try $ fileHandler logFile DEBUG >>= \lh -> return $
+                    setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
+
+  case fileLogger of
     Left (err :: E.SomeException) -> putStrLn ("Error: " ++ show err) >> putStrLn logUsage
-    Right h'                      -> updateGlobalLogger rootLoggerName (addHandler h')
+    Right fileLogger'             -> updateGlobalLogger rootLoggerName (addHandler fileLogger')
 
   args <- parseArgs
   case args of
