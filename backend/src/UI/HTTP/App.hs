@@ -38,7 +38,7 @@ import           Data.Aeson                          (encode)
 import           Data.ByteString
 import qualified Data.ByteString.Char8               as B8
 import qualified Data.ByteString.Lazy                as BSL
-import           Data.Int                            (Int64)
+-- import           Data.Int                            (Int64)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as T
 import           Data.Text.Encoding                  (decodeUtf8)
@@ -238,7 +238,7 @@ getAdhocTweetHandler cfg request response = case queryString request of
     [("id", Just id_)] -> case B8.readInteger id_ of
           Just (int, str) -> do
             debug $ "got adhoc tweet request for: " ++ show id_
-            response $ responseStream status200 [mimeJSON] (adhocTweetStream (fromIntegral int :: Int64))
+            response $ responseStream status200 [mimeJSON] (adhocTweetStream (fromIntegral int :: Integer))
 
           Nothing -> do
             error ("bad retweet id" :: String)
@@ -259,7 +259,7 @@ retweetHandler cfg request response = case queryString request of
     [("id", Just id_)] -> case B8.readInteger id_ of
           Just (int, str) -> do
             debug $ "got retweet " ++ show id_
-            response $ responseStream status200 [mimeJSON] (retweetStream (fromIntegral int :: Int64))
+            response $ responseStream status200 [mimeJSON] (retweetStream (fromIntegral int :: Integer))
 
           Nothing -> do
             error ("bad retweet id" :: String)
@@ -278,7 +278,7 @@ starHandler cfg request response = case queryString request of
     [("id", Just id_)] -> case B8.readInteger id_ of
           Just (int, str) -> do
             debug $ "got star " ++ show id_
-            response $ responseStream status200 [mimeJSON] (starStream (fromIntegral int :: Int64))
+            response $ responseStream status200 [mimeJSON] (starStream (fromIntegral int :: Integer))
 
           Nothing -> do
             error ("bad star id" :: String)
@@ -296,7 +296,7 @@ historyHandler cfg request response = case queryString request of
     [("maxid", Just id_), ("count", Just count)] -> case B8.readInteger id_ of
           Just (int_id, str) -> do
             debug $ "got history request with maxid " ++ show int_id ++ " and count " ++ show count
-            response $ responseStream status200 [mimeJSON] (historyStream (fromIntegral int_id :: Int64))
+            response $ responseStream status200 [mimeJSON] (historyStream (fromIntegral int_id :: Integer))
 
           Nothing -> do
             error ("bad history maxid" :: String)

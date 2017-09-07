@@ -6,6 +6,8 @@
 
 module BL.Types where
 
+import Prelude hiding (id)
+
 #ifndef __GHCJS__
 
 import           Control.Applicative
@@ -30,7 +32,8 @@ import           GHC.Generics
 type Url = String
 type Username = String
 type ScreenName = Text
-type TweetId = Int64
+type TweetId = Integer
+type AuthorId = Integer
 type TweetBody = ByteString
 
 data Message = Message Int
@@ -124,13 +127,17 @@ data TweetElement = AtUsername Text
 
 data Tweet = Tweet { text       :: [TweetElement]
                    , created_at :: Text
-                   , id_        :: TweetId
+                   , id         :: TweetId
                    , id_str     :: String
                    , user       :: Author
                    , entities   :: Entities
+                   , extendedEntities :: Entities
                    , retweet    :: Maybe Tweet
                    , status_favorited :: Maybe Bool
                    , status_retweeted :: Maybe Bool
+                   , statusInReplyToStatusId   :: Maybe TweetId
+                   , statusInReplyToUserId     :: Maybe AuthorId
+                   , statusInReplyToScreenName :: Maybe Text
                    } deriving (Show, Generic)
 
 data Entities = Entities { urls     :: [EntityUrl]
@@ -192,10 +199,10 @@ data JsonUserInfo = JsonUserInfo { uiTitle :: Text
 data Show a => ApiError a = ApiError String | TransportError a deriving Show
 
 instance Eq Tweet where
-  Tweet {id_ = aid} == Tweet {id_ = bid} = aid == bid
+  Tweet {id = aid} == Tweet {id = bid} = aid == bid
 
 instance Ord Tweet where
-   max x@(Tweet {id_ = aid}) y@(Tweet {id_ = bid}) = if aid >= bid then x else y
-   Tweet {id_ = aid} <= Tweet {id_ = bid} = aid <= bid
+   max x@(Tweet {id = aid}) y@(Tweet {id = bid}) = if aid >= bid then x else y
+   Tweet {id = aid} <= Tweet {id = bid} = aid <= bid
 
 data JsonUnreadCount = JsonUnreadCount  { unreadCount :: Int } deriving (Show, Generic)

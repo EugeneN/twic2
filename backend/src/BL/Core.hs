@@ -83,7 +83,7 @@ import           Data.Time.Clock                (NominalDiffTime, UTCTime (..),
                                                  diffUTCTime, getCurrentTime,
                                                  secondsToDiffTime)
 import           GHC.Generics
-import           Prelude                        hiding (error)
+import           Prelude                        hiding (error, id)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
 import           Web.Twitter.Conduit
@@ -113,25 +113,35 @@ twInfo cfg = setCredential (oauthToken cfg) (oauthCredential cfg) def
 retweetStatusToTweet :: TT.RetweetedStatus -> Tweet
 retweetStatusToTweet s = Tweet { text               = parseTweet $ TT.rsText s
                                , created_at         = pack $ show $ TT.rsCreatedAt s
-                               , id_                = fromIntegral (TT.rsId s) :: Int64
+                               , id                 = fromIntegral (TT.rsId s) :: Integer
                                , id_str             = show $ TT.rsId s
                                , user               = statusUserToAuthor $ TT.rsUser s
                                , entities           = statusEntitiesToEntities $ TT.rsEntities s
+                               , extendedEntities   = BL.Types.Entities [] [] Nothing
                                , retweet            = Just $ statusToTweet $ TT.rsRetweetedStatus s
                                , status_favorited   = Nothing
-                               , status_retweeted   = Nothing }
+                               , status_retweeted   = Nothing
+                               , BL.Types.statusInReplyToStatusId   = Nothing
+                               , BL.Types.statusInReplyToUserId     = Nothing
+                               , BL.Types.statusInReplyToScreenName = Nothing
+                               }
 
 statusRetweetToRetweet :: Maybe TT.Status -> Maybe Tweet
 statusToTweet :: TT.Status -> Tweet
 statusToTweet s = Tweet { text              = parseTweet $ TT.statusText s
                         , created_at        = pack $ show $ TT.statusCreatedAt s
-                        , id_               = fromIntegral (TT.statusId s) :: Int64
+                        , id                = fromIntegral (TT.statusId s) :: Integer
                         , id_str            = show $ TT.statusId s
                         , user              = statusUserToAuthor $ TT.statusUser s
                         , entities          = statusEntitiesToEntities $ TT.statusEntities s
+                        , extendedEntities  = statusEntitiesToEntities $ TT.statusExtendedEntities s
                         , retweet           = statusRetweetToRetweet $ TT.statusRetweetedStatus s
                         , status_favorited  = TT.statusFavorited s
-                        , status_retweeted  = TT.statusRetweeted s }
+                        , status_retweeted  = TT.statusRetweeted s
+                        , BL.Types.statusInReplyToStatusId   = TT.statusInReplyToStatusId s
+                        , BL.Types.statusInReplyToUserId     = TT.statusInReplyToUserId s
+                        , BL.Types.statusInReplyToScreenName = TT.statusInReplyToScreenName s
+                        }
 
 statusUserToAuthor :: TT.User -> Author
 statusUserToAuthor s = Author (TT.userName s)
@@ -266,7 +276,7 @@ saveLastSeen db ts cfg = do
     where
     getMaxId :: [Tweet] -> TweetId
     --getMaxId [] = ?
-    getMaxId ts = maximum (BL.Types.id_ <$> ts)
+    getMaxId ts = maximum (BL.Types.id <$> ts)
 
 putToClientQueue q ms = do
     maybeOldMs <- tryTakeMVar q

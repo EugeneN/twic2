@@ -8,6 +8,7 @@ module BL.Instances where
 import Data.Aeson
 
 import BL.Types
+import Data.Maybe (fromMaybe, Maybe(..))
 import Control.Monad
 import Data.Text (Text)
 #ifndef __GHCJS__
@@ -26,11 +27,27 @@ instance FromJSON Tweet where
     id_str      <- x .: "id_str"
     user        <- x .: "user"
     entities    <- x .: "entities"
+    extendedEntities <- x .:? "extended_entities"
     retweet     <- x .:? "retweeted_status"
-    favorited   <- x .:? "favorited"
-    retweeted   <- x .:? "retweeted"
+    status_favorited   <- x .:? "favorited"
+    status_retweeted   <- x .:? "retweeted"
+    statusInReplyToStatusId   <- x.:? "in_reply_to_status_id"
+    statusInReplyToUserId     <- x.:? "in_reply_to_user_id"
+    statusInReplyToScreenName <- x.:? "in_reply_to_screen_name"
 
-    return $ Tweet (parseTweet text) created_at id_ id_str user entities retweet favorited retweeted
+    return $ Tweet (parseTweet text)
+                   created_at
+                   id_
+                   id_str
+                   user
+                   entities
+                   (fromMaybe (Entities [] [] Nothing) extendedEntities)
+                   retweet
+                   status_favorited
+                   status_retweeted
+                   statusInReplyToStatusId
+                   statusInReplyToUserId
+                   statusInReplyToScreenName
 
   parseJSON _ = fail "tweet is expected to be an object"
 
@@ -73,9 +90,13 @@ instance ToJSON JsonUserInfo
 
 #ifndef __GHCJS__
 instance FromJSON BL.Types.Entities where
-  parseJSON (Object x) = BL.Types.Entities <$> x .: "urls"
-                                           <*> x .: "hashtags"
-                                           <*> x .:? "media"
+  parseJSON (Object x) = do
+    urls <- x .:? "urls"
+    hts <- x .:? "hashtags"
+    ms <- x .:? "media"
+
+    return $ BL.Types.Entities (fromMaybe [] urls) (fromMaybe [] hts) ms
+                                           
   parseJSON _ = fail "entities is expected to be an object"
 
 #else

@@ -73,13 +73,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   (adhocE :: R.Event t BL.FeedMessage, adhocU) <- RHA.newExternalEvent
 
   let adhocE' = fmap filterSelfLinks $ R.fmapMaybe unpackTweets adhocE
-  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id_ x) x xs) HM.empty adhocE'
+  adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id x) x xs) HM.empty adhocE'
 
   subscribeToEvent adhocE' $ preloadEntities adhocCmdU
 
-  subscribeToEvent adhocCmdE $ \id_ -> void . forkIO $ do
+  subscribeToEvent adhocCmdE $ \id -> void . forkIO $ do
     x :: Either String BL.TheResponse <- withBusy busyU .
-                            getAPI . JSS.pack $ "/adhoc/?id=" <> show id_
+                            getAPI . JSS.pack $ "/adhoc/?id=" <> show id
     case x of
       Left e  -> (ntU $ Error "Adhoc request failed" e) >> pure ()
       Right (BL.Fail (BL.JsonApiError t m)) -> (ntU $ Error (T.unpack t) (T.unpack m)) >> pure ()
@@ -109,7 +109,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   subscribeToEvent tweetActionE $ \c -> forkIO . void $ case c of
     Retweet t -> do
       x :: Either String (BL.TheResponse) <- withBusy busyU .
-                            getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id_ t)
+                            getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id t)
       case x of
         Left e  -> ntU $ Error "Retweet failed" e
         Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
@@ -120,7 +120,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
     Love t -> do
       x :: Either String (BL.TheResponse) <- withBusy busyU .
-                              getAPI . JSS.pack $ "/star/?id=" <> show (BL.id_ t)
+                              getAPI . JSS.pack $ "/star/?id=" <> show (BL.id t)
       case x of
         Left e -> ntU $ Error ":-(" e
         Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
@@ -135,7 +135,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       let t' = join $ fmap unpackTweets $ listToMaybe fs
       in maybe ":-)"
                (\t -> "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t)
-                                                <> "/status/" <> show (BL.id_ t))
+                                                <> "/status/" <> show (BL.id t))
                t'
 
     feedOp op (old, cur, new) = case op of
@@ -155,7 +155,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     filterSelfLinks t =
       let es = BL.entities t
           ls = BL.urls es
-          newUrls = filter (go (BL.id_ t)) ls
+          newUrls = filter (go (BL.id t)) ls
       in t {BL.entities = (es {BL.urls = newUrls})}
       where
         go pid u =
@@ -196,7 +196,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
     preloadEntities adhocCmdU t = void . forkIO $
-      forM_ (BL.urls . BL.entities $ t) $ matchEntity (go (BL.id_ t) adhocCmdU) twitterPattern
+      forM_ (BL.urls . BL.entities $ t) $ matchEntity (go (BL.id t) adhocCmdU) twitterPattern
 
       where
         go pid adhocCmdU x = do
@@ -295,7 +295,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                          , button "RE" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
                          , button "LV" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
                          , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
-                                                              , ("href", "https://twitter.com/xxx/status/" <> show (BL.id_ t))])
+                                                              , ("href", "https://twitter.com/xxx/status/" <> show (BL.id t))])
                                                               [VD.text "GO"]
                          ]
 
