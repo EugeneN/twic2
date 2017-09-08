@@ -561,7 +561,7 @@ bodyCss = do
     bottom (px 10)
     right (px 10)
 
-  ".family-thread" ? do
+  ".thread-block" ? do
     border solid (px 0) red
 
   ".embedded-tweet" ? do

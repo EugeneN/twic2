@@ -54,6 +54,8 @@ data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew de
 data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
+data ThreadElem = T BL.Tweet | Separator
+
 feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
               -> Sink UserInfoQuery
@@ -220,7 +222,34 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                           [ onClick_ $ controllerU Search ]
             ]
 
-        tweetList (old, cur, new) = container [list $ if DL.null cur then [noTweetsLabel "EOF"] else fmap (block . (: []) . tweet (old, cur, new)) cur]
+        groupByParent :: ([BL.Tweet], [[BL.Tweet]]) -> [[BL.Tweet]]
+        groupByParent ([], acc) = acc
+        groupByParent ((x:rest), acc) =
+          let ps = findParents rest x
+              ps' = ps <> [x]
+              rest' = rest DL.\\ ps'
+          in groupByParent (rest', acc <> [ps'])
+
+        -- XXX inefficient algo; proof of concept only; TODO refactor later
+        findParents :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
+        findParents us t =
+          let p = filter (\t' -> Just (BL.id t') == BL.statusInReplyToStatusId t) us
+              ps = join $ findParents us <$> p
+          in ps <> p
+
+        findChildren :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
+        findChildren us t =
+          let p = filter (\t' -> BL.statusInReplyToStatusId t' == Just (BL.id t)) us
+              ps = join $ findChildren us <$> p
+          in p <> ps
+
+        us = unique $ old <> cur <> new
+        grouped' = DL.reverse . groupByParent $ (DL.reverse us, [])
+        grouped = filter (\xs -> DL.last xs `DL.elem` cur) grouped'
+
+        tweetList (old, cur, new) = container
+          [list $ if DL.null cur then [noTweetsLabel "EOF"]
+                                 else fmap (block_ "thread-block" . (: []) . thread) grouped]
 
         refreshButton new =
           VD.h "div"
@@ -230,30 +259,18 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                     [ onClick_ (controllerU ShowNew >> scrollToTop) ]
             ]
 
-        tweet (old, cur, new) t = panel' $ [ thread parents ]
-                                        <> [ toolbar t, author t, body t ]
-                                        <> entities (BL.entities t)
-                                        <> [ thread children ]
-          where
-            thread xs = block_ "family-thread" $ fmap (\x -> block_ "parent" [tweet ([],[],[]) x]) xs
+        thread ts =
+          let wts = fmap T ts
+              sts = DL.intersperse Separator wts
+          in VD.h "div" (p_ [("style", "padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px;")])
+                      $ fmap tweetOrSep sts
 
-            parents = findParents us t
-            children = findChildren us t
+        tweetOrSep (T t) = tweet t
+        tweetOrSep Separator = VD.h "div" (p_ [("style", "padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 30px;")])
+                                          [VD.text "|"]
 
-            us = unique $ old <> cur <> new
-
-            -- XXX inefficient algo; proof of concept only; TODO refactor later
-            findParents :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
-            findParents us t =
-              let p = filter (\t' -> Just (BL.id t') == BL.statusInReplyToStatusId t) us
-                  ps = join $ findParents us <$> p
-              in ps <> p
-
-            findChildren :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
-            findChildren us t =
-              let p = filter (\t' -> BL.statusInReplyToStatusId t' == Just (BL.id t)) us
-                  ps = join $ findChildren us <$> p
-              in p <> ps
+        tweet t = panel' $ [ toolbar t, author t, body t ]
+                        <> entities (BL.entities t)
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
                                         [link_ (T.pack $ BL.mMediaUrl m)
@@ -289,7 +306,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         renderTweet tid = case HM.lookup (read tid) adhoc of
           Nothing -> block_ "media embedded-tweet" [ VD.text $ "Embedded tweet " <> tid ]
-          Just t  -> block_ "media embedded-tweet" [ tweet ([], [], []) t ]
+          Just t  -> block_ "media embedded-tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e
           where
