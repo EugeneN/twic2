@@ -52,7 +52,7 @@ last_ n [] = []
 last_ n xs = [DL.last xs]
 
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
-data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet deriving (Show, Eq)
+data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Tweet deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
 data ThreadElem = T BL.Tweet | Separator
@@ -121,6 +121,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
       Reply t -> do
         print "TODO reply component" >> pure False
+
+      Go t -> do
+        windowOpen $ JSS.pack $ "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t) <> "/status/" <> show (BL.id t)
+        pure True
 
       Love t -> do
         x :: Either String (BL.TheResponse) <- withBusy busyU .
@@ -356,10 +360,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                          (p toolbarStyle)
                          [ button "RT" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
                          , button "RE" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
-                         , button "LV" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
-                         , VD.h "a" (p $ toolbarBtnStyle <> A [ ("target", "_blank")
-                                                              , ("href", "https://twitter.com/xxx/status/" <> show (BL.id t))])
-                                                              [VD.text "GO"]
+                         , button "♥" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
+                         , button "GO" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Go t) ]
                          ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of

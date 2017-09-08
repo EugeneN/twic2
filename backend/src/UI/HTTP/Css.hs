@@ -549,12 +549,16 @@ bodyCss = do
 
   ".tweet-toolbar-button" ? do
     color black
-    background transparent
+    background $ rgba 222 222 222 222
     border solid (px 0) transparent
     cursor pointer
     fontSize (px 11)
     padding (px 2) (px 6) (px 3) (px 6)
     textDecoration none
+    width (px 25)
+    height (px 25)
+    "border-radius" -: "50%"
+
 
   ".busy-wrapper" ? do
     position fixed
