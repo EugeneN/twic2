@@ -80,59 +80,62 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   let allTweetsD = (,) <$> feedD <*> adhocD
 
-  subscribeToEvent adhocE' $ \x -> do
-    preloadEntities adhocCmdU x
-    preloadThreads adhocCmdU x
-
+  subscribeToEvent adhocE' (handleAdhocEvents adhocCmdU)
   subscribeToEvent' adhocCmdE $ loadAdhocTweet allTweetsD adhocU
-
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
-
   subscribeToEvent (R.ffilter (not . isFeedOp) controllerE) print
-
-  subscribeToEvent modelE $ \x -> case x of
-    Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
-    _ -> pure ()
-
-  subscribeToEvent tweetsE $ \x' -> do
-    let x = filterSelfLinks x'
-    controllerU (AddNew x)
-    preloadEntities adhocCmdU x
-    preloadThreads adhocCmdU x
-    pure ()
-
-  subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
-    setTitle $ case length new of
-                  0 -> "No new tweets"
-                  1 -> "1 new tweet"
-                  x -> show x <> " new tweets"
-
-  subscribeToEvent tweetActionE $ \c -> forkIO . void $ case c of
-    Retweet t -> do
-      x :: Either String (BL.TheResponse) <- withBusy busyU .
-                            getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id t)
-      case x of
-        Left e  -> ntU $ Error "Retweet failed" e
-        Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-        Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Retweeted!" (mkTweetLink fs)
-
-    Reply t -> do
-      print "TODO reply component" >> pure False
-
-    Love t -> do
-      x :: Either String (BL.TheResponse) <- withBusy busyU .
-                              getAPI . JSS.pack $ "/star/?id=" <> show (BL.id t)
-      case x of
-        Left e -> ntU $ Error ":-(" e
-        Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-        Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Loved the tweet!" (mkTweetLink fs)
+  subscribeToEvent modelE (handleModelEvents tweetsU)
+  subscribeToEvent tweetsE (handleNewTweets controllerU adhocCmdU)
+  subscribeToEvent (R.updated feedD) setTitle'
+  subscribeToEvent tweetActionE handleTweetActions
 
   let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) allTweetsD
 
   return (ownViewDyn, pure (Counter 0))
 
   where
+    handleAdhocEvents adhocCmdU x = do
+      preloadEntities adhocCmdU x
+      preloadThreads adhocCmdU x
+
+    handleModelEvents tweetsU x = case x of
+      Right (WSData xs) -> forM_ xs $ \y -> when (isTweet y) $ tweetsU (unpackTweet y) >> pure ()
+      _ -> pure ()
+
+    handleNewTweets controllerU adhocCmdU x' = do
+      let x = filterSelfLinks x'
+      controllerU (AddNew x)
+      preloadEntities adhocCmdU x
+      preloadThreads adhocCmdU x
+      pure ()
+
+    handleTweetActions c = forkIO . void $ case c of
+      Retweet t -> do
+        x :: Either String (BL.TheResponse) <- withBusy busyU .
+                              getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id t)
+        case x of
+          Left e  -> ntU $ Error "Retweet failed" e
+          Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Retweeted!" (mkTweetLink fs)
+
+      Reply t -> do
+        print "TODO reply component" >> pure False
+
+      Love t -> do
+        x :: Either String (BL.TheResponse) <- withBusy busyU .
+                                getAPI . JSS.pack $ "/star/?id=" <> show (BL.id t)
+        case x of
+          Left e -> ntU $ Error ":-(" e
+          Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Loved the tweet!" (mkTweetLink fs)
+
+    setTitle' (_,_,new) =
+      setTitle $ case length new of
+                    0 -> "No new tweets"
+                    1 -> "1 new tweet"
+                    x -> show x <> " new tweets"
+
     mkTweetLink fs =
       let t' = join $ fmap unpackTweets $ listToMaybe fs
       in maybe ":-)"
