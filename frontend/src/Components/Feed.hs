@@ -11,6 +11,7 @@ import Prelude
 import Control.Applicative           ((<*>), (<$>), (<|>))
 import Control.Concurrent            (forkIO)
 import Control.Monad                 (void, forM_, when, join)
+import Control.Monad.IO.Class        (liftIO)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List           as DL
@@ -77,15 +78,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   let adhocE' = fmap filterSelfLinks $ R.fmapMaybe unpackTweets adhocE
   adhocD <- R.foldDyn (\x xs -> HM.insert (BL.id x) x xs) HM.empty adhocE'
 
-  subscribeToEvent adhocE' $ preloadEntities adhocCmdU
+  let allTweetsD = (,) <$> feedD <*> adhocD
 
-  subscribeToEvent adhocCmdE $ \id -> void . forkIO $ do
-    x :: Either String BL.TheResponse <- withBusy busyU .
-                            getAPI . JSS.pack $ "/adhoc/?id=" <> show id
-    case x of
-      Left e  -> (ntU $ Error "Adhoc request failed" e) >> pure ()
-      Right (BL.Fail (BL.JsonApiError t m)) -> (ntU $ Error (T.unpack t) (T.unpack m)) >> pure ()
-      Right (BL.Ok (BL.JsonResponse _ ts)) -> forM_ ts adhocU
+  subscribeToEvent adhocE' $ \x -> do
+    preloadEntities adhocCmdU x
+    preloadThreads adhocCmdU x
+
+  subscribeToEvent' adhocCmdE $ loadAdhocTweet allTweetsD adhocU
 
   ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
@@ -100,6 +99,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
     let x = filterSelfLinks x'
     controllerU (AddNew x)
     preloadEntities adhocCmdU x
+    preloadThreads adhocCmdU x
     pure ()
 
   subscribeToEvent (R.updated feedD) $ \(_,_,new) ->
@@ -128,7 +128,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
         Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Loved the tweet!" (mkTweetLink fs)
 
-  let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) ((,) <$> feedD <*> adhocD)
+  let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) allTweetsD
 
   return (ownViewDyn, pure (Counter 0))
 
@@ -197,6 +197,26 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       mapM_ (c . JSS.unpack . head . RegExp.subMatched)
             (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
+    loadAdhocTweet allTweetsD adhocU tid = do
+        ((old, cur, new), adhoc) <- R.sample $ R.current allTweetsD
+        let x = listToMaybe $ filter ((tid ==) . BL.id) (old <> cur <> new)
+        let y = HM.member tid adhoc
+
+        case (x, y) of
+          (Nothing, False) -> liftIO $ void . forkIO $ do
+            x :: Either String BL.TheResponse <- withBusy busyU .
+                                    getAPI . JSS.pack $ "/adhoc/?id=" <> show tid
+            case x of
+              Left e  -> (ntU $ Error "Adhoc request for parent thread failed" e) >> pure ()
+              Right (BL.Fail (BL.JsonApiError t m)) -> (ntU $ Error (T.unpack t) (T.unpack m)) >> pure ()
+              Right (BL.Ok (BL.JsonResponse _ ts)) -> forM_ ts adhocU
+
+          otherwise -> pure ()
+
+    preloadThreads adhocCmdU x = case BL.statusInReplyToStatusId x of
+      Just pid -> adhocCmdU pid >> pure ()
+      Nothing -> pure ()
+
     preloadEntities adhocCmdU t = void . forkIO $
       forM_ (BL.urls . BL.entities $ t) $ matchEntity (go (BL.id t) adhocCmdU) twitterPattern
 
@@ -243,7 +263,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
               ps = join $ findChildren us <$> p
           in p <> ps
 
-        us = unique $ old <> cur <> new
+        us = unique $ old <> cur <> new <> HM.elems adhoc
         grouped' = DL.reverse . groupByParent $ (DL.reverse us, [])
         grouped = filter (\xs -> DL.last xs `DL.elem` cur) grouped'
 
