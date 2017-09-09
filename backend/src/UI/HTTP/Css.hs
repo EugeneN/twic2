@@ -544,7 +544,8 @@ bodyCss = do
 
   ".tweet-toolbar-a" ? do
     position absolute
-    top (px (-31))
+    top (px (-38))
+    padding (px 3) (px 3) (px 3) (px 3)
     left (px (-5))
     width (px 62)
     height (px 32)
@@ -553,9 +554,13 @@ bodyCss = do
     borderRadius (px 17) (px 17) (px 17) (px 17)
     textAlign (alignSide sideCenter)
 
+    button ? do
+      marginRight (px 3)
+
   ".tweet-toolbar-b" ? do
     position absolute
-    top (px (-31))
+    top (px (-38))
+    padding (px 3) (px 3) (px 3) (px 3)
     left (px (-5))
     width (px 62)
     height (px 32)
@@ -563,6 +568,9 @@ bodyCss = do
     display none
     borderRadius (px 17) (px 17) (px 17) (px 17)
     textAlign (alignSide sideCenter)
+
+    button ? do
+      marginRight (px 3)
 
   ".panel" # hover ? do
     ".tweet-toolbar" ? do
