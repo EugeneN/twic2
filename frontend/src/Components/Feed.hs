@@ -16,7 +16,7 @@ import Control.Monad.IO.Class        (liftIO)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List           as DL
 import Data.Foldable                 (asum)
-import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes)
+import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes, fromMaybe)
 import Data.Monoid
 import qualified Data.Set            as Set
 import qualified Data.Text           as T
@@ -56,6 +56,9 @@ data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Twe
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
 data ThreadElem = T BL.Tweet | Separator
+
+mkTweetUrl t = "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t) <> "/status/" <> show (BL.id t)
+mkTweetUrl' tid sn = "https://twitter.com/" <> (fromMaybe "xxx" sn) <> "/status/" <> show tid
 
 feedComponent :: R.Event t ChildAction
               -> (WSInterface t, R.Event t (Maybe WS.WebSocket))
@@ -117,13 +120,13 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         case x of
           Left e  -> ntU $ Error "Retweet failed" e
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Retweeted!" (mkTweetLink fs)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Retweeted!" (mkTweetLink_ fs)
 
       Reply t -> do
         print "TODO reply component" >> pure False
 
       Go t -> do
-        windowOpen $ JSS.pack $ "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t) <> "/status/" <> show (BL.id t)
+        windowOpen $ JSS.pack $ mkTweetUrl t
         pure True
 
       Love t -> do
@@ -132,7 +135,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         case x of
           Left e -> ntU $ Error ":-(" e
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loved the tweet!" (mkTweetLink fs)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loved the tweet!" (mkTweetLink_ fs)
 
     setTitle' (_,_,new) =
       setTitle $ case length new of
@@ -140,12 +143,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                     1 -> "1 new tweet"
                     x -> show x <> " new tweets"
 
-    mkTweetLink fs =
+    mkTweetLink_ fs =
       let t' = join $ fmap unpackTweets $ listToMaybe fs
-      in maybe ":-)"
-               (\t -> "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t)
-                                                <> "/status/" <> show (BL.id t))
-               t'
+      in maybe ":-)" mkTweetUrl t'
 
     feedOp op (old, cur, new) = case op of
       AddNew t  -> (old, cur, (unique $ new <> [t]))
@@ -293,7 +293,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                       $ fmap tweetOrSep sts
 
         tweetOrSep (T t) = tweet t
-        tweetOrSep Separator = VD.h "div" (p_ [("style", "color: #aaa; padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 30px;")])
+        tweetOrSep Separator = VD.h "div" (p_ [("style", "color: #aaa; padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 25px;")])
                                           [VD.text "↓"]
 
         tweet t = panelRel $ [ toolbar t, author t, body t ]
@@ -332,7 +332,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           ]
 
         renderTweet tid = case HM.lookup (read tid) adhoc of
-          Nothing -> block_ "media embedded-tweet" [ VD.text $ "Embedded tweet " <> tid ]
+          Nothing -> block_ "media embedded-tweet" [ panel [VD.text $ "Embedded tweet ", link (T.pack $ mkTweetUrl' tid Nothing) (T.pack $ show tid)] ]
           Just t  -> block_ "media embedded-tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e
@@ -376,7 +376,6 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                              (p_ [("class", c)])
                              [VD.h "a"
                                    (p_ [("href", T.unpack "javascript:void(0)"), ("target", "_blank")])
-                                  --  (p_ [("href", T.unpack $ "https://twitter.com/" <> BL.screen_name a), ("target", "_blank")])
                                    [flip VD.with [ onClick_ (requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name a))] $
                                        VD.h "img"
                                          (p_ [ ("class", "user-icon-img")
