@@ -197,6 +197,7 @@ bodyCss = do
   ".notification-wrapper" ? do
     position fixed
     right (px 0)
+    zIndex 999
 
   ".notification-wrapper.hide" ? do
     display none

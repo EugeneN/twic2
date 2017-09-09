@@ -117,7 +117,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         case x of
           Left e  -> ntU $ Error "Retweet failed" e
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Retweeted!" (mkTweetLink fs)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Retweeted!" (mkTweetLink fs)
 
       Reply t -> do
         print "TODO reply component" >> pure False
@@ -132,7 +132,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         case x of
           Left e -> ntU $ Error ":-(" e
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Info "Loved the tweet!" (mkTweetLink fs)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loved the tweet!" (mkTweetLink fs)
 
     setTitle' (_,_,new) =
       setTitle $ case length new of
@@ -241,11 +241,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-            [ buttonIcon "" "send-o" (p_ [("id", "write-new-tweet-id"), ("class", "history-button")])
+            [ buttonIcon "" "send-o" "New tweet" (A [("id", "write-new-tweet-id"), ("class", "history-button")])
                            [ onClick_ $ controllerU WriteNew ]
-            , buttonIcon "" "ellipsis-h" (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
+            , buttonIcon "" "ellipsis-h" "Show older tweets" (A [("id", "load-history-tweets-id"), ("class", "history-button")])
                           [ onClick_ $ controllerU (ShowOld 1) ]
-            , buttonIcon "" "search" (p_ [("id", "search-tweets-id"), ("class", "history-button")])
+            , buttonIcon "" "search" "Search" (A [("id", "search-tweets-id"), ("class", "history-button")])
                           [ onClick_ $ controllerU Search ]
             ]
 
@@ -358,10 +358,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         toolbar t = VD.h "span"
                          (p toolbarStyle)
-                         [ buttonIcon "" "retweet"       (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
-                         , buttonIcon "" "comment"       (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
-                         , buttonIcon "" "heart"         (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
-                         , buttonIcon "" "external-link" (p $ toolbarBtnStyle) [ onClick_ $ tweetActionU (Go t) ]
+                         [ buttonIcon "" "retweet"       "Retweet" toolbarBtnStyle [ onClick_ $ tweetActionU (Retweet t) ]
+                         , buttonIcon "" "comment"       "Reply"   toolbarBtnStyle [ onClick_ $ tweetActionU (Reply t) ]
+                         , buttonIcon "" "heart"         "Like"    toolbarBtnStyle [ onClick_ $ tweetActionU (Love t) ]
+                         , buttonIcon "" "external-link" "Open in Twitter" toolbarBtnStyle [ onClick_ $ tweetActionU (Go t) ]
                          ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of

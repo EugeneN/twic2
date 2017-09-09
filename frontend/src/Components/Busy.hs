@@ -45,5 +45,6 @@ busyComponent ntU = do
     container s x = block_ ("busy-wrapper " <> s) [x]
 
     render busyU x
-       | x > 0 = container "animated fadeIn" $ block [VD.text $ "Loading... (" <> show x <> ")"]
+       | x > 0 = container "animated fadeIn" $ block [ VD.h "i" (p_ [("class", "fa fa-cog fa-spin")]) []
+                                                     , VD.text $ " Loading... (" <> show x <> ")"]
        | otherwise = container "hide fadeOut" mempty

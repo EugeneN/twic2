@@ -78,9 +78,9 @@ button label attrs listeners =
   flip VD.with listeners $
     VD.h "button" attrs [VD.text label]
 
-buttonIcon label icon attrs listeners =
+buttonIcon label icon hint attrs listeners =
   flip VD.with listeners $
-    VD.h "button" attrs
+    VD.h "button" (p $ (A [("title", hint)]) <> attrs)
       [ VD.h "i" (p_ [("class", "fa fa-" <> icon)]) []
       , VD.text label]
 
