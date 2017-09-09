@@ -380,7 +380,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         authorToolbar s u = VD.h "span"
                          (p s)
-                         [ buttonIcon "" "user-circle-o" "Info" toolbarBtnStyle [ onClick_ $ tweetActionU (UserInfo u) ]
+                         [ -- VD.h "span" (p_ []) [VD.text . T.unpack $ BL.name u]
+                           buttonIcon "" "user-circle-o" "Info" toolbarBtnStyle [ onClick_ $ tweetActionU (UserInfo u) ]
                          , buttonIcon "" "list-ul"  "Feed" toolbarBtnStyle [ onClick_ $ tweetActionU (UserFeed u) ]
                          ]
 

@@ -544,10 +544,10 @@ bodyCss = do
 
   ".tweet-toolbar-a" ? do
     position absolute
-    top (px 0)
-    left (px (-30))
-    width (px 34)
-    height (px 65)
+    top (px (-31))
+    left (px (-5))
+    width (px 62)
+    height (px 32)
     background white
     display none
     borderRadius (px 17) (px 17) (px 17) (px 17)
@@ -555,10 +555,10 @@ bodyCss = do
 
   ".tweet-toolbar-b" ? do
     position absolute
-    top (px 0)
-    right (px (30))
-    width (px 34)
-    height (px 65)
+    top (px (-31))
+    left (px (-5))
+    width (px 62)
+    height (px 32)
     background white
     display none
     borderRadius (px 17) (px 17) (px 17) (px 17)
