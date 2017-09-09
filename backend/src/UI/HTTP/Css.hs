@@ -533,11 +533,13 @@ bodyCss = do
   ".tweet-toolbar" ? do
     position absolute
     top (px 0)
-    right (px 0)
-    width (px 30)
-    height (px 90)
-    background transparent
+    right (px (-30))
+    width (px 34)
+    height (px 125)
+    background white
     display none
+    borderRadius (px 17) (px 17) (px 17) (px 17)
+    textAlign (alignSide sideCenter)
 
   ".panel" # hover ? do
     ".tweet-toolbar" ? do
@@ -580,6 +582,13 @@ bodyCss = do
     marginLeft (px 50)
     marginTop (px 30)
     position relative
+
+    ".tweet-toolbar" ? do
+      right (px (-24))
+
+    ".embedded-tweet" ? do
+      ".tweet-body" ? do
+        width (px 400)
 
     ".tweet-body" ? do
       width (px 500)
