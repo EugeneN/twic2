@@ -575,7 +575,7 @@ bodyCss = do
     background white
     border solid (px 0) transparent
     borderRadius (px 3) (px 3) (px 3) (px 3)
-    "box-shadow" -: "0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15) "
+    -- "box-shadow" -: "0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15) "
     margin (px 0) (px 0) (px 0) (px 0)
     maxWidth (px 600)
     padding (px 0) (px 0) (px 0) (px 0)
@@ -583,6 +583,8 @@ bodyCss = do
     marginLeft (px 50)
     marginTop (px 30)
     position relative
+    borderLeft  solid (px 1) ("#cccccc" :: Color)
+    borderRight solid (px 1) ("#cccccc" :: Color)
 
     ".tweet-toolbar" ? do
       right (px (-24))

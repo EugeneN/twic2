@@ -293,8 +293,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                       $ fmap tweetOrSep sts
 
         tweetOrSep (T t) = tweet t
-        tweetOrSep Separator = VD.h "div" (p_ [("style", "padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 30px;")])
-                                          [VD.text "|"]
+        tweetOrSep Separator = VD.h "div" (p_ [("style", "color: #aaa; padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 30px;")])
+                                          [VD.text "↓"]
 
         tweet t = panelRel $ [ toolbar t, author t, body t ]
                         <> entities (BL.entities t)
