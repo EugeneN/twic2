@@ -78,6 +78,12 @@ button label attrs listeners =
   flip VD.with listeners $
     VD.h "button" attrs [VD.text label]
 
+buttonIcon label icon attrs listeners =
+  flip VD.with listeners $
+    VD.h "button" attrs
+      [ VD.h "i" (p_ [("class", "fa fa-" <> icon)]) []
+      , VD.text label]
+
 foreign import javascript unsafe "$1.target.value"
   jsval :: JSVal -> JSS.JSString
 
@@ -95,6 +101,10 @@ panel ch = VD.h "div"
 panel' ch = VD.h "div"
                 (VD.prop [ ("class", "panel")
                          , ("style", "padding: 10px; border: 0px solid grey; width: auto; display: inline-block; margin: 5px;")])
+                ch
+panelRel ch = VD.h "div"
+                (VD.prop [ ("class", "panel")
+                         , ("style", "padding: 10px; border: 0px solid grey; width: auto; display: inline-block; margin: 5px; position: relative;")])
                 ch
 
 list xs = VD.h "ul"

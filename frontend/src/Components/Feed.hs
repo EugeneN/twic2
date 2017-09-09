@@ -241,11 +241,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
-            [ button "wr" (p_ [("id", "write-new-tweet-id"), ("class", "history-button")])
+            [ buttonIcon "" "send-o" (p_ [("id", "write-new-tweet-id"), ("class", "history-button")])
                            [ onClick_ $ controllerU WriteNew ]
-            , button "..." (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
+            , buttonIcon "" "ellipsis-h" (p_ [("id", "load-history-tweets-id"), ("class", "history-button")])
                           [ onClick_ $ controllerU (ShowOld 1) ]
-            , button "se" (p_ [("id", "search-tweets-id"), ("class", "history-button")])
+            , buttonIcon "" "search" (p_ [("id", "search-tweets-id"), ("class", "history-button")])
                           [ onClick_ $ controllerU Search ]
             ]
 
@@ -296,7 +296,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         tweetOrSep Separator = VD.h "div" (p_ [("style", "padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 30px;")])
                                           [VD.text "|"]
 
-        tweet t = panel' $ [ toolbar t, author t, body t ]
+        tweet t = panelRel $ [ toolbar t, author t, body t ]
                         <> entities (BL.entities t)
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
@@ -358,10 +358,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         toolbar t = VD.h "span"
                          (p toolbarStyle)
-                         [ button "RT" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
-                         , button "RE" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
-                         , button "♥" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
-                         , button "GO" (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Go t) ]
+                         [ buttonIcon "" "retweet"       (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Retweet t) ]
+                         , buttonIcon "" "comment"       (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Reply t) ]
+                         , buttonIcon "" "heart"         (p toolbarBtnStyle) [ onClick_ $ tweetActionU (Love t) ]
+                         , buttonIcon "" "external-link" (p $ toolbarBtnStyle) [ onClick_ $ tweetActionU (Go t) ]
                          ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of

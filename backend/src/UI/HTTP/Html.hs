@@ -46,6 +46,7 @@ htmlPage title_ body_ error_ = docTypeHtml $ do
   body ! A.id "body" $ do
     div_ ! A.id "root" $ mempty
     H.script ! A.src "/cs/Main.js" ! A.type_ "text/javascript" $ mempty
+    H.script ! A.src "https://use.fontawesome.com/0b24445f98.js" ! A.type_ "text/javascript" $ mempty
 
 homePage :: Html
 homePage = htmlPage title_ body_ err_

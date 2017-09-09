@@ -579,6 +579,7 @@ bodyCss = do
     width  (px 600)
     marginLeft (px 50)
     marginTop (px 30)
+    position relative
 
     ".tweet-body" ? do
       width (px 500)
