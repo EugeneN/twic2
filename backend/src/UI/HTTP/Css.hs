@@ -241,7 +241,7 @@ bodyCss = do
     marginBottom auto
     marginRight (px 20)
     verticalAlign textTop
-    --position relative
+    position relative
     --top (px 7)
 
   ".user-icon1" ? do
@@ -279,8 +279,8 @@ bodyCss = do
     borderRadius (pct 50) (pct 50) (pct 50) (pct 50)
     transition "all" (ms 150) ease (ms 150)
 
-  ".user-icon-img" # hover ? do
-    transform $ scale 1.5 1.5
+  -- ".user-icon-img" # hover ? do
+    -- transform $ scale 1.5 1.5
 
   ".tweet-body" ? do
     width (px 600)
@@ -542,8 +542,38 @@ bodyCss = do
     borderRadius (px 17) (px 17) (px 17) (px 17)
     textAlign (alignSide sideCenter)
 
+  ".tweet-toolbar-a" ? do
+    position absolute
+    top (px 0)
+    left (px (-30))
+    width (px 34)
+    height (px 65)
+    background white
+    display none
+    borderRadius (px 17) (px 17) (px 17) (px 17)
+    textAlign (alignSide sideCenter)
+
+  ".tweet-toolbar-b" ? do
+    position absolute
+    top (px 0)
+    right (px (30))
+    width (px 34)
+    height (px 65)
+    background white
+    display none
+    borderRadius (px 17) (px 17) (px 17) (px 17)
+    textAlign (alignSide sideCenter)
+
   ".panel" # hover ? do
     ".tweet-toolbar" ? do
+      display block
+
+  ".user-icon-x" # hover ? do
+    ".tweet-toolbar-a" ? do
+      display block
+
+  ".user-icon-y" # hover ? do
+    ".tweet-toolbar-b" ? do
       display block
 
   ".tweet-toolbar-button" # hover ? do
@@ -588,6 +618,9 @@ bodyCss = do
 
     ".tweet-toolbar" ? do
       right (px (-24))
+
+    ".tweet-toolbar-a" ? do
+      left (px (-24))
 
     ".embedded-tweet" ? do
       ".tweet-body" ? do

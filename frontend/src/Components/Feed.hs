@@ -52,7 +52,8 @@ last_ n [] = []
 last_ n xs = [DL.last xs]
 
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
-data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Tweet deriving (Show, Eq)
+data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Tweet
+                 | UserInfo BL.Author | UserFeed BL.Author deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
 
 data ThreadElem = T BL.Tweet | Separator
@@ -91,7 +92,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   subscribeToEvent modelE (handleModelEvents tweetsU)
   subscribeToEvent tweetsE (handleNewTweets controllerU adhocCmdU)
   subscribeToEvent (R.updated feedD) setTitle'
-  subscribeToEvent tweetActionE handleTweetActions
+  subscribeToEvent tweetActionE (handleTweetActions requestUserInfoU)
 
   let ownViewDyn = fmap (render controllerU requestUserInfoU tweetActionU) allTweetsD
 
@@ -113,7 +114,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       preloadThreads adhocCmdU x
       pure ()
 
-    handleTweetActions c = forkIO . void $ case c of
+    handleTweetActions requestUserInfoU c = forkIO . void $ case c of
       Retweet t -> do
         x :: Either String (BL.TheResponse) <- withBusy busyU .
                               getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id t)
@@ -136,6 +137,17 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           Left e -> ntU $ Error ":-(" e
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
           Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loved the tweet!" (mkTweetLink_ fs)
+
+      UserInfo u -> do
+        requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name u)
+
+      UserFeed u -> do
+        x :: Either String (BL.TheResponse) <- withBusy busyU .
+                                getAPI . JSS.pack $ "/userfeed/?sn=" <> show (BL.screen_name u)
+        case x of
+          Left e -> ntU $ Error ":-(" e
+          Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
+          Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loaded user feed!" "..."
 
     setTitle' (_,_,new) =
       setTitle $ case length new of
@@ -354,6 +366,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                    (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
         toolbarStyle = A [ ("class", "tweet-toolbar") ]
+        toolbarStyleA = A [ ("class", "tweet-toolbar-a") ]
+        toolbarStyleB = A [ ("class", "tweet-toolbar-b") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
 
         toolbar t = VD.h "span"
@@ -364,17 +378,24 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                          , buttonIcon "" "external-link" "Open in Twitter" toolbarBtnStyle [ onClick_ $ tweetActionU (Go t) ]
                          ]
 
+        authorToolbar s u = VD.h "span"
+                         (p s)
+                         [ buttonIcon "" "user-circle-o" "Info" toolbarBtnStyle [ onClick_ $ tweetActionU (UserInfo u) ]
+                         , buttonIcon "" "list-ul"  "Feed" toolbarBtnStyle [ onClick_ $ tweetActionU (UserFeed u) ]
+                         ]
+
         author t = case (BL.user t, BL.user <$> BL.retweet t) of
-          (a, Nothing) -> m "user-icon" a
+          (a, Nothing) -> m "user-icon user-icon-x" toolbarStyleA a
           (a, Just b)  ->
             VD.h "span"
                   (p_ [("class", "user-icon")])
-                  [ m "user-icon1" a
-                  , m "user-icon2" b ]
+                  [ m "user-icon1 user-icon-x" toolbarStyleA a
+                  , m "user-icon2 user-icon-y" toolbarStyleB b ]
           where
-            m = \c a -> VD.h "span"
+            m = \c s a -> VD.h "span"
                              (p_ [("class", c)])
-                             [VD.h "a"
+                             [ authorToolbar s a
+                             , VD.h "a"
                                    (p_ [("href", T.unpack "javascript:void(0)"), ("target", "_blank")])
                                    [flip VD.with [ onClick_ (requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name a))] $
                                        VD.h "img"
