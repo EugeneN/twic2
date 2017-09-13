@@ -57,4 +57,4 @@ theApp = do
 
   where
     layout notification feed userinfo busy =
-      notification <> columns [(feed, 100)] <> userinfo <> busy
+      notification <> userinfo <> busy <> columns [(feed, 100)] 

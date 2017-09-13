@@ -93,6 +93,7 @@ stringInput u =
 
 noTweetsLabel = VD.h "div" (p_ [("class", "no-tweets")]) . (:[]) . VD.text
 container = VD.h "div" (VD.prop [("id", "container"), ("class", "container")])
+container' = VD.h' "div" VD.Replace (VD.prop [("id", "container"), ("class", "container")])
 
 panel ch = VD.h "div"
                 (VD.prop [ ("class", "panel")

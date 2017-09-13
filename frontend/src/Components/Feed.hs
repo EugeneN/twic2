@@ -54,7 +54,7 @@ last_ n xs = [DL.last xs]
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int | Search | WriteNew deriving (Show, Eq)
 data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Tweet
                  | UserInfo BL.Author | UserFeed BL.Author deriving (Show, Eq)
-type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet])
+type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet], Maybe FeedAction)
 
 data ThreadElem = T BL.Tweet | Separator
 
@@ -73,7 +73,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
-  feedD  <- R.foldDyn feedOp ([],[],[]) $ R.ffilter isFeedOp controllerE
+  feedD  <- R.foldDyn feedOp ([],[],[], Nothing) $ R.ffilter isFeedOp controllerE
   modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   (adhocCmdE :: R.Event t BL.TweetId, adhocCmdU) <- RHA.newExternalEvent
@@ -86,9 +86,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
   subscribeToEvent adhocE' (handleAdhocEvents adhocCmdU)
   subscribeToEvent' adhocCmdE $ loadAdhocTweet allTweetsD adhocU
-  ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
+  -- ws_rcve wsi ~> (print . mappend "Received from WS: " . show)
   ws_rcve wsi ~> modelU
-  subscribeToEvent (R.ffilter (not . isFeedOp) controllerE) print
+  -- subscribeToEvent (R.ffilter (not . isFeedOp) controllerE) print
   subscribeToEvent modelE (handleModelEvents tweetsU)
   subscribeToEvent tweetsE (handleNewTweets controllerU adhocCmdU)
   subscribeToEvent (R.updated feedD) setTitle'
@@ -149,7 +149,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           Right (BL.Fail (BL.JsonApiError t m)) -> ntU $ Error (T.unpack t) (T.unpack m)
           Right (BL.Ok (BL.JsonResponse _ fs))  -> ntU $ Success "Loaded user feed!" "..."
 
-    setTitle' (_,_,new) =
+    setTitle' (_,_,new,_) =
       setTitle $ case length new of
                     0 -> "No new tweets"
                     1 -> "1 new tweet"
@@ -159,11 +159,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       let t' = join $ fmap unpackTweets $ listToMaybe fs
       in maybe ":-)" mkTweetUrl t'
 
-    feedOp op (old, cur, new) = case op of
-      AddNew t  -> (old, cur, (unique $ new <> [t]))
-      ShowNew   -> ((unique $ old <> cur), new, [])
-      ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new)
-      _         -> (old, cur, new)
+    feedOp op (old, cur, new, _) = case op of
+      AddNew t  -> (old, cur, (unique $ new <> [t]), Just op)
+      ShowNew   -> ((unique $ old <> cur), new, [], Just op)
+      ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new, Just op)
+      _         -> (old, cur, new, Just op)
 
     isFeedOp x = case x of
       AddNew _  -> True
@@ -217,7 +217,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             (RegExp.exec (JSS.pack $ BL.eExpandedUrl u) p)
 
     loadAdhocTweet allTweetsD adhocU tid = do
-        ((old, cur, new), adhoc) <- R.sample $ R.current allTweetsD
+        ((old, cur, new, _), adhoc) <- R.sample $ R.current allTweetsD
         let x = listToMaybe $ filter ((tid ==) . BL.id) (old <> cur <> new)
         let y = HM.member tid adhoc
 
@@ -246,10 +246,19 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
           -- TODO skip loading if already cached
 
     render :: Sink FeedAction -> Sink UserInfoQuery -> Sink TweetAction -> (Feed, HM.HashMap BL.TweetId BL.Tweet) -> VD.VNode l
-    render controllerU requestUserInfoU tweetActionU ((old, cur, new), adhoc) =
-      block [historyButton, tweetList (old, cur, new), refreshButton new]
+    render controllerU requestUserInfoU tweetActionU ((old, cur, new, cmd), adhoc) =
+      block [statusBar, historyButton, tweetList (old, cur, new), refreshButton new]
 
       where
+        statusBar =
+          let o = length old
+              c = length cur
+              n = length new
+              a = HM.size adhoc
+              total = o + c + n + a
+          in block_ "status-bar-wrapper"
+                    [ VD.text $ show o <> "/" <> show c <> "/" <> show n <> "/" <> show a <> "/" <> show total ]
+
         historyButton =
           VD.h "div"
             (VD.prop [("style", "text-align: center; margin-top: 15px;")])
@@ -286,9 +295,12 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         grouped' = DL.reverse . groupByParent $ (DL.reverse us, [])
         grouped = filter (\xs -> DL.last xs `DL.elem` cur) grouped'
 
-        tweetList (old, cur, new) = container
-          [list $ if DL.null cur then [noTweetsLabel "EOF"]
-                                 else fmap (block_ "thread-block" . (: []) . thread) grouped]
+        tweetList (old, cur, new) =
+          let c = case cmd of
+                    Just ShowNew -> container'
+                    otherwise    -> container
+          in c [list $ if DL.null cur then [noTweetsLabel "EOF"]
+                                      else fmap (block_ "thread-block" . (: []) . thread) grouped]
 
         refreshButton new =
           VD.h "div"
@@ -343,9 +355,11 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             ]
           ]
 
-        renderTweet tid = case HM.lookup (read tid) adhoc of
-          Nothing -> block_ "media embedded-tweet" [ panel [VD.text $ "Embedded tweet ", link (T.pack $ mkTweetUrl' tid Nothing) (T.pack $ show tid)] ]
-          Just t  -> block_ "media embedded-tweet" [ tweet t ]
+        renderTweet tid =
+          let z = read tid -- XXX
+          in case HM.lookup z adhoc of
+            Nothing -> block_ "media embedded-tweet" [ panel' [VD.text $ "Embedded tweet ", link (T.pack $ mkTweetUrl' z Nothing) (T.pack tid)] ]
+            Just t  -> block_ "media embedded-tweet" [ tweet t ]
 
         entities e = goMedia e <> goUrls e
           where

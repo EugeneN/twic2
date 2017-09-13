@@ -199,6 +199,12 @@ bodyCss = do
     right (px 0)
     zIndex 999
 
+  ".status-bar-wrapper" ? do
+    position fixed
+    left (px 10)
+    bottom (px 10)
+    zIndex 999
+
   ".notification-wrapper.hide" ? do
     display none
 
@@ -286,6 +292,7 @@ bodyCss = do
     width (px 600)
     display inlineBlock
     verticalAlign textTop
+    "word-wrap" -: "break-word"
 
   ".no-tweets" ? do
     textAlign (alignSide sideCenter)
@@ -631,8 +638,13 @@ bodyCss = do
       left (px (-24))
 
     ".embedded-tweet" ? do
+      width (px 500)
+
       ".tweet-body" ? do
         width (px 400)
+
+      ".inline-img" ? do
+        maxWidth (px 400)
 
     ".tweet-body" ? do
       width (px 500)
