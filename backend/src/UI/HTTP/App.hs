@@ -9,11 +9,11 @@ import           BL.Core                             (fetchContext, followUser,
                                                       getStatus, readHistory,
                                                       readUserInfo,
                                                       readUserstream, replyUrl,
-                                                      retweetUrl, saveLastSeen,
-                                                      adhocTweetUrl,
+                                                      unretweetUrl, retweetUrl,
+                                                      saveLastSeen, adhocTweetUrl,
                                                       saveLastSeenAsync,
                                                       sendFetchAccountRequest,
-                                                      starUrl, tweetUrl,
+                                                      unstarUrl, starUrl, tweetUrl,
                                                       unfollowUser, updateFeed,
                                                       writeApi, readApi)
 import           BL.DataLayer                        (MyDb)
@@ -125,8 +125,10 @@ httpapp st db cfg request sendResponse = do
 
     path -> case Prelude.head path of
       "retweet"  -> retweetHandler      cfg request sendResponse
+      "unretweet"-> unretweetHandler    cfg request sendResponse
       "adhoc"    -> getAdhocTweetHandler cfg request sendResponse
       "star"     -> starHandler         cfg request sendResponse
+      "unstar"   -> unstarHandler       cfg request sendResponse
       "tweet"    -> tweetHandler        cfg request sendResponse
       "reply"    -> replyHandler        cfg request sendResponse
       "stat"     -> statHandler st db   cfg request sendResponse
@@ -272,6 +274,24 @@ retweetHandler cfg request response = case queryString request of
         retweetStream id_ send flush =
             writeApi (retweetUrl id_) cfg >>= send . retweetToJson >> flush
 
+unretweetHandler :: Cfg -> Application
+unretweetHandler cfg request response = case queryString request of
+    [("id", Just id_)] -> case B8.readInteger id_ of
+          Just (int, str) -> do
+            debug $ "got unretweet " ++ show id_
+            response $ responseStream status200 [mimeJSON] (unretweetStream (fromIntegral int :: Integer))
+
+          Nothing -> do
+            error ("bad retweet id" :: String)
+            response $ responseLBS status200 [mimeJSON] "bad retweet id"
+
+    _ -> response $ responseLBS status200 [mimeJSON] "bad request"
+
+    where
+        unretweetStream :: TweetId -> (Builder -> IO ()) -> IO () -> IO ()
+        unretweetStream id_ send flush =
+            writeApi (unretweetUrl id_) cfg >>= send . retweetToJson >> flush
+
 
 starHandler :: Cfg -> Application
 starHandler cfg request response = case queryString request of
@@ -290,6 +310,24 @@ starHandler cfg request response = case queryString request of
         starStream :: TweetId -> (Builder -> IO ()) -> IO () -> IO ()
         starStream id_ send flush =
             writeApi (starUrl id_) cfg >>= send . starToJson >> flush
+
+unstarHandler :: Cfg -> Application
+unstarHandler cfg request response = case queryString request of
+    [("id", Just id_)] -> case B8.readInteger id_ of
+          Just (int, str) -> do
+            debug $ "got unstar " ++ show id_
+            response $ responseStream status200 [mimeJSON] (unstarStream (fromIntegral int :: Integer))
+
+          Nothing -> do
+            error ("bad star id" :: String)
+            response $ responseLBS status200 [mimeJSON] "bad star id"
+
+    _ -> response $ responseLBS status200 [mimeJSON] "bad request"
+
+    where
+        unstarStream :: TweetId -> (Builder -> IO ()) -> IO () -> IO ()
+        unstarStream id_ send flush =
+            writeApi (unstarUrl id_) cfg >>= send . starToJson >> flush
 
 historyHandler :: Cfg -> Application
 historyHandler cfg request response = case queryString request of

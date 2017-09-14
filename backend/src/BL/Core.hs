@@ -27,6 +27,7 @@ module BL.Core (
   , readUserstream
   , readUserInfo
   , retweetUrl
+  , unretweetUrl
   , adhocTweetUrl
   , followUser
   , unfollowUser
@@ -40,6 +41,7 @@ module BL.Core (
   , sendFetchAccountRequest
   , readApi
   , starUrl
+  , unstarUrl
   , twInfo
   ) where
 
@@ -190,8 +192,14 @@ accountSettingsUrl = "https://api.twitter.com/1.1/account/settings.json"
 retweetUrl :: TweetId -> Url
 retweetUrl x = "https://api.twitter.com/1.1/statuses/retweet/" ++ show x ++ ".json"
 
+unretweetUrl :: TweetId -> Url
+unretweetUrl x = "https://api.twitter.com/1.1/statuses/unretweet/" ++ show x ++ ".json"
+
 starUrl :: TweetId -> Url
 starUrl x = "https://api.twitter.com/1.1/favorites/create.json?id=" ++ show x
+
+unstarUrl :: TweetId -> Url
+unstarUrl x = "https://api.twitter.com/1.1/favorites/destroy.json?id=" ++ show x
 
 adhocTweetUrl :: TweetId -> Feed
 adhocTweetUrl x = AdhocTweet $ "https://api.twitter.com/1.1/statuses/show/" ++ show x ++ ".json?include_my_retweet=1&include_entities=1"

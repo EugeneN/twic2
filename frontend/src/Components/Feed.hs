@@ -54,7 +54,7 @@ last_ n xs = [DL.last xs]
 data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int
                 | Search | WriteNew
                 | MarkRt BL.Tweet Bool | MarkLv BL.Tweet Bool deriving (Show, Eq)
-data TweetAction = Retweet BL.Tweet | Reply BL.Tweet | Love BL.Tweet | Go BL.Tweet
+data TweetAction = Retweet BL.Tweet Bool | Reply BL.Tweet | Love BL.Tweet Bool | Go BL.Tweet
                  | UserInfo BL.Author | UserFeed BL.Author deriving (Show, Eq)
 type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet], Maybe FeedAction)
 
@@ -117,20 +117,21 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       pure ()
 
     handleTweetActions controllerU requestUserInfoU c = forkIO . void $ case c of
-      Retweet t -> do
+      Retweet t b -> do
         -- optimistically patch tweet
-        controllerU $ MarkRt t True
+        controllerU $ MarkRt t b
 
-        x :: Either String (BL.TheResponse) <- withBusy busyU .
-                              getAPI . JSS.pack $ "/retweet/?id=" <> show (BL.id t)
+        let url = (if b then "/retweet/?id=" else "/unretweet/?id=") <> show (BL.id t)
+        x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
+
         case x of
           -- update tweet with actual result
           Left e  -> do
-            controllerU $ MarkRt t False
+            controllerU $ MarkRt t (not b)
             ntU $ Error "Retweet failed" e
 
           Right (BL.Fail (BL.JsonApiError t' m)) -> do
-            controllerU $ MarkRt t False
+            controllerU $ MarkRt t (not b)
             ntU $ Error (T.unpack t') (T.unpack m)
 
           Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Retweeted!" (mkTweetLink_ fs)
@@ -142,16 +143,17 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         windowOpen $ JSS.pack $ mkTweetUrl t
         pure True
 
-      Love t -> do
-        controllerU $ MarkLv t True
-        x :: Either String (BL.TheResponse) <- withBusy busyU .
-                                getAPI . JSS.pack $ "/star/?id=" <> show (BL.id t)
+      Love t b -> do
+        controllerU $ MarkLv t b
+        let url = (if b then "/star/?id=" else "/unstar/?id=") <> show (BL.id t)
+        x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
+
         case x of
           Left e -> do
-            controllerU $ MarkLv t False
+            controllerU $ MarkLv t (not b)
             ntU $ Error ":-(" e
           Right (BL.Fail (BL.JsonApiError t' m)) -> do
-            controllerU $ MarkLv t False
+            controllerU $ MarkLv t (not b)
             ntU $ Error (T.unpack t') (T.unpack m)
           Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Loved the tweet!" (mkTweetLink_ fs)
 
@@ -408,31 +410,37 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         toolbarStyleB = A [ ("class", "tweet-toolbar-b") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
 
-        statusRtCss t = case BL.status_retweeted t of
-          Just True -> "display: block !important;"
-          otherwise -> ""
+        isRt t = case BL.status_retweeted t of
+          Just True -> True
+          otherwise -> False
 
-        statusRtCss' t = case BL.status_retweeted t of
-          Just True -> "background-color: lightgreen;"
-          otherwise -> ""
+        isLv t = case BL.status_favorited t of
+          Just True -> True
+          otherwise -> False
 
-        statusLkCss t = case BL.status_favorited t of
-          Just True -> "display: block !important;"
-          otherwise -> ""
+        statusRtCss t  = if isRt t then "display: block !important;"    else ""
+        statusRtCss' t = if isRt t then "background-color: lightgreen;" else ""
 
-        statusLkCss' t = case BL.status_favorited t of
-          Just True -> "background-color: lightgreen;"
-          otherwise -> ""
+        statusLkCss t  = if isLv t then "display: block !important;"    else ""
+        statusLkCss' t = if isLv t then "background-color: lightgreen;" else ""
 
         toolbarRt t = VD.h "span"
                          (p $ toolbarStyle <> A [("style", ("top: 0px;" <> statusRtCss t))])
-                         [ buttonIcon "" "retweet"       "Retweet" (toolbarBtnStyle <> A [("style", statusRtCss' t)]) [ onClick_ $ tweetActionU (Retweet t) ] ]
+                         [ buttonIcon "" "retweet"
+                                      (if isRt t then "Unretweet" else "Retweet")
+                                      (toolbarBtnStyle <> A [("style", statusRtCss' t)])
+                                      [ onClick_ $ tweetActionU (Retweet t (not $ isRt t)) ] ]
         toolbarRe t = VD.h "span"
                          (p $ toolbarStyle <> A [("style", "top: 30px;")])
                          [ buttonIcon "" "comment"       "Reply"   toolbarBtnStyle [ onClick_ $ tweetActionU (Reply t) ] ]
+
         toolbarLk t = VD.h "span"
                          (p $ toolbarStyle <> A [("style", ("top: 60px;" <> statusLkCss t))])
-                         [ buttonIcon "" "heart"         "Like"    (toolbarBtnStyle <> A [("style", statusLkCss' t)]) [ onClick_ $ tweetActionU (Love t) ] ]
+                         [ buttonIcon "" "heart"
+                                      (if isLv t then "Unlove" else "Love")
+                                      (toolbarBtnStyle <> A [("style", statusLkCss' t)])
+                                      [ onClick_ $ tweetActionU (Love t (not $ isLv t)) ] ]
+
         toolbarGo t = VD.h "span"
                          (p $ toolbarStyle <> A [("style", "top: 90px")])
                          [ buttonIcon "" "external-link" "Open in Twitter" toolbarBtnStyle [ onClick_ $ tweetActionU (Go t) ] ]
