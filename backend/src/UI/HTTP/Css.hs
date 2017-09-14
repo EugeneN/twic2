@@ -250,6 +250,17 @@ bodyCss = do
     position relative
     --top (px 7)
 
+    ".author-name-toolbar" ? do
+      borderRadius (px 17) (px 17) (px 17) (px 17)
+      top (px 44)
+      fontSize (px 14)
+      width (px 150)
+      height auto
+      backgroundColor ("#eee" :: Color)
+      position absolute
+      padding (px 5) (px 10) (px 5) (px 10)
+      "white-space" -: "nowrap"
+
   ".user-icon1" ? do
     display inlineBlock
     width (px 30)
@@ -264,6 +275,17 @@ bodyCss = do
     ".user-icon-img" ? do
       borderRight solid (px 1) white
 
+    ".author-name-toolbar" ? do
+      borderRadius (px 17) (px 17) (px 17) (px 17)
+      top (px 44)
+      fontSize (px 14)
+      width (px 150)
+      height auto
+      backgroundColor ("#eee" :: Color)
+      position absolute
+      padding (px 5) (px 10) (px 5) (px 10)
+      "white-space" -: "nowrap"
+
   ".user-icon2" ? do
     display inlineBlock
     width (px 30)
@@ -274,6 +296,17 @@ bodyCss = do
     verticalAlign textTop
     position absolute
     left (px 10)
+
+    ".author-name-toolbar" ? do
+      borderRadius (px 17) (px 17) (px 17) (px 17)
+      top (px 44)
+      fontSize (px 14)
+      width (px 150)
+      height auto
+      backgroundColor ("#eee" :: Color)
+      position absolute
+      padding (px 5) (px 10) (px 5) (px 10)
+      "white-space" -: "nowrap"
 
     "img" # hover ? do
         zIndex 100
@@ -540,10 +573,10 @@ bodyCss = do
 
   ".tweet-toolbar" ? do
     position absolute
-    top (px 0)
+    -- top (px 0)
     right (px (-30))
     width (px 34)
-    height (px 125)
+    height (px 34)
     background white
     display none
     borderRadius (px 17) (px 17) (px 17) (px 17)

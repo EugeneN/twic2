@@ -320,8 +320,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         tweetOrSep Separator = VD.h "div" (p_ [("style", "color: #aaa; padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 25px;")])
                                           [VD.text "↓"]
 
-        tweet t = panelRel $ [ toolbar t, author t, body t ]
-                        <> entities (BL.entities t)
+        tweet t = panelRel $ [ toolbarRt t, toolbarRe t, toolbarLk t, toolbarGo t, author t, body t ]
+                           <> entities (BL.entities t)
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
                                         [link_ (T.pack $ BL.mMediaUrl m)
@@ -384,13 +384,26 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         toolbarStyleB = A [ ("class", "tweet-toolbar-b") ]
         toolbarBtnStyle = A [ ("class", "tweet-toolbar-button") ]
 
-        toolbar t = VD.h "span"
-                         (p toolbarStyle)
-                         [ buttonIcon "" "retweet"       "Retweet" toolbarBtnStyle [ onClick_ $ tweetActionU (Retweet t) ]
-                         , buttonIcon "" "comment"       "Reply"   toolbarBtnStyle [ onClick_ $ tweetActionU (Reply t) ]
-                         , buttonIcon "" "heart"         "Like"    toolbarBtnStyle [ onClick_ $ tweetActionU (Love t) ]
-                         , buttonIcon "" "external-link" "Open in Twitter" toolbarBtnStyle [ onClick_ $ tweetActionU (Go t) ]
-                         ]
+        statusRtCss t = case BL.status_retweeted t of
+          Just True -> "display: block; background-color: green;"
+          otherwise -> ""
+
+        statusLkCss t = case BL.status_favorited t of
+          Just True -> "display: block; background-color: green;"
+          otherwise -> ""
+
+        toolbarRt t = VD.h "span"
+                         (p $ toolbarStyle <> A [("style", ("top: 0px;" <> statusRtCss t))])
+                         [ buttonIcon "" "retweet"       "Retweet" toolbarBtnStyle [ onClick_ $ tweetActionU (Retweet t) ] ]
+        toolbarRe t = VD.h "span"
+                         (p $ toolbarStyle <> A [("style", "top: 30px;")])
+                         [ buttonIcon "" "comment"       "Reply"   toolbarBtnStyle [ onClick_ $ tweetActionU (Reply t) ] ]
+        toolbarLk t = VD.h "span"
+                         (p $ toolbarStyle <> A [("style", ("top: 60px;" <> statusLkCss t))])
+                         [ buttonIcon "" "heart"         "Like"    toolbarBtnStyle [ onClick_ $ tweetActionU (Love t) ] ]
+        toolbarGo t = VD.h "span"
+                         (p $ toolbarStyle <> A [("style", "top: 90px")])
+                         [ buttonIcon "" "external-link" "Open in Twitter" toolbarBtnStyle [ onClick_ $ tweetActionU (Go t) ] ]
 
         authorToolbar s u = VD.h "span"
                          (p s)
@@ -398,6 +411,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                            buttonIcon "" "user-circle-o" "Info" toolbarBtnStyle [ onClick_ $ tweetActionU (UserInfo u) ]
                          , buttonIcon "" "list-ul"  "Feed" toolbarBtnStyle [ onClick_ $ tweetActionU (UserFeed u) ]
                          ]
+
+        authorNameToolbar s u = VD.h "span"
+                         (p $ s <> A [("style", "top: 44px; width: auto; background-color: #eee; padding: 5px 10px 5px 10px; height: auto; white-space: nowrap;"), ("class", "author-name-toolbar")])
+                         [ VD.h "span" (p_ []) [VD.text . T.unpack $ BL.name u] ]
 
         author t = case (BL.user t, BL.user <$> BL.retweet t) of
           (a, Nothing) -> m "user-icon user-icon-x" toolbarStyleA a
@@ -410,6 +427,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             m = \c s a -> VD.h "span"
                              (p_ [("class", c)])
                              [ authorToolbar s a
+                             , authorNameToolbar s a
                              , VD.h "a"
                                    (p_ [("href", T.unpack "javascript:void(0)"), ("target", "_blank")])
                                    [flip VD.with [ onClick_ (requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name a))] $
