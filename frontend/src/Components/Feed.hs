@@ -56,9 +56,34 @@ data FeedAction = AddNew BL.Tweet | ShowNew | ShowOld Int
                 | MarkRt BL.Tweet Bool | MarkLv BL.Tweet Bool deriving (Show, Eq)
 data TweetAction = Retweet BL.Tweet Bool | Reply BL.Tweet | Love BL.Tweet Bool | Go BL.Tweet
                  | UserInfo BL.Author | UserFeed BL.Author deriving (Show, Eq)
-type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet], Maybe FeedAction)
+-- type Feed = ([BL.Tweet], [BL.Tweet], [BL.Tweet], Maybe FeedAction)
+type Feed = (Set.Set BL.Tweet, Set.Set BL.Tweet, Set.Set BL.Tweet, Maybe FeedAction)
 
 data ThreadElem = T BL.Tweet | Separator
+
+
+dummyTweet i = BL.Tweet { BL.text                       = []
+                        , BL.created_at                = ""
+                        , BL.id                        = i
+                        , BL.id_str                    = show i
+                        , BL.user                      = a
+                        , BL.entities                  = es
+                        , BL.extendedEntities          = es
+                        , BL.retweet                   = Nothing
+                        , BL.status_favorited          = Nothing
+                        , BL.status_retweeted          = Nothing
+                        , BL.statusInReplyToStatusId   = Nothing
+                        , BL.statusInReplyToUserId     = Nothing
+                        , BL.statusInReplyToScreenName = Nothing }
+  where
+    a =  BL.Author { BL.name                  = ""
+                   , BL.authorId              = 0
+                   , BL.screen_name           = ""
+                   , BL.default_profile_image = False
+                   , BL.profile_image_url     = "" }
+    es = BL.Entities { BL.urls     = []
+                     , BL.hashtags = []
+                     , BL.media    = Nothing }
 
 mkTweetUrl t = "https://twitter.com/" <> (T.unpack . BL.screen_name . BL.user $ t) <> "/status/" <> show (BL.id t)
 mkTweetUrl' tid sn = "https://twitter.com/" <> (fromMaybe "xxx" sn) <> "/status/" <> show tid
@@ -75,8 +100,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
   (modelE :: R.Event t (Either String WSData), modelU) <- RHA.newExternalEvent
   (tweetsE :: R.Event t BL.Tweet, tweetsU) <- RHA.newExternalEvent
 
-  feedD  <- R.foldDyn feedOp ([],[],[], Nothing) $ R.ffilter isFeedOp controllerE
-  modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
+  feedD  <- R.foldDyn feedOp (Set.empty,Set.empty,Set.empty, Nothing) $ R.ffilter isFeedOp controllerE
+  -- modelD <- R.foldDyn (\x xs -> xs <> [x]) [] modelE
 
   (adhocCmdE :: R.Event t BL.TweetId, adhocCmdU) <- RHA.newExternalEvent
   (adhocE :: R.Event t BL.FeedMessage, adhocU) <- RHA.newExternalEvent
@@ -178,26 +203,38 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       let t' = join $ fmap unpackTweets $ listToMaybe fs
       in maybe ":-)" mkTweetUrl t'
 
-    toggleRt t x t' = if BL.id t == BL.id t' then t'{ BL.status_retweeted = Just x } else t'
-    toggleLv t x t' = if BL.id t == BL.id t' then t'{ BL.status_favorited = Just x } else t'
+    toggleRt t x ts =
+      let idx = Set.lookupIndex t ts
+          ts' = case idx of
+                Just idx' -> let z = Set.elemAt idx' ts
+                                 as = Set.deleteAt idx' ts
+                             in Set.insert (z{ BL.status_retweeted = Just x }) as
+                Nothing -> ts
+      in ts'
+    toggleLv t x ts =
+      let idx = Set.lookupIndex t ts
+          ts' = case idx of
+                Just idx' -> let z = Set.elemAt idx' ts
+                                 as = Set.deleteAt idx' ts
+                             in Set.insert (z{ BL.status_favorited = Just x }) as
+                Nothing -> ts
+      in ts'
 
     feedOp op (old, cur, new, _) = case op of
-      AddNew t  -> (old, cur, (unique $ new <> [t]), Just op)
-      ShowNew   -> ((unique $ old <> cur), new, [], Just op)
-      ShowOld n -> (allButLast n old, (unique $ last_ n old <> cur), new, Just op)
-      MarkRt t x -> (toggleRt t x <$> old, toggleRt t x <$> cur, toggleRt t x <$> new, Just op)
-      MarkLv t x -> (toggleLv t x <$> old, toggleLv t x <$> cur, toggleLv t x <$> new, Just op)
-      _         -> (old, cur, new, Just op)
+      AddNew t   -> (old, cur, (Set.insert t new), Just op)
+      ShowNew    -> ((Set.union old cur), new, Set.empty, Just op)
+      ShowOld n  -> let (t, old') = Set.deleteFindMax old in (old', (Set.insert t cur), new, Just op)
+      MarkRt t x -> (toggleRt t x old, toggleRt t x cur, toggleRt t x new, Just op)
+      MarkLv t x -> (toggleLv t x old, toggleLv t x cur, toggleLv t x new, Just op)
+      _          -> (old, cur, new, Just op)
 
     isFeedOp x = case x of
-      AddNew _  -> True
-      ShowNew   -> True
-      ShowOld _ -> True
+      AddNew _   -> True
+      ShowNew    -> True
+      ShowOld _  -> True
       MarkRt _ _ -> True
       MarkLv _ _ -> True
-      _         -> False
-
-    unique = Set.toAscList . Set.fromList
+      _          -> False
 
     filterSelfLinks t =
       let es = BL.entities t
@@ -244,11 +281,15 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
     loadAdhocTweet allTweetsD adhocU tid = do
         ((old, cur, new, _), adhoc) <- R.sample $ R.current allTweetsD
-        let x = listToMaybe $ filter ((tid ==) . BL.id) (old <> cur <> new)
-        let y = HM.member tid adhoc
+        let z = dummyTweet tid
+            a = z `Set.member` old
+            b = z `Set.member` cur
+            c = z `Set.member` new
+            d = HM.member tid adhoc
+            e = a || b || c || d
 
-        case (x, y) of
-          (Nothing, False) -> liftIO $ void . forkIO $ do
+        case c of
+          False -> liftIO $ void . forkIO $ do
             x :: Either String BL.TheResponse <- withBusy busyU .
                                     getAPI . JSS.pack $ "/adhoc/?id=" <> show tid
             case x of
@@ -277,9 +318,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
       where
         statusBar =
-          let o = length old
-              c = length cur
-              n = length new
+          let o = Set.size old
+              c = Set.size cur
+              n = Set.size new
               a = HM.size adhoc
               total = o + c + n + a
           in block_ "status-bar-wrapper"
@@ -296,37 +337,43 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                           [ onClick_ $ controllerU Search ]
             ]
 
-        groupByParent :: ([BL.Tweet], [[BL.Tweet]]) -> [[BL.Tweet]]
-        groupByParent ([], acc) = acc
-        groupByParent ((x:rest), acc) =
-          let ps = findParents rest x
+        groupByParent :: (Set.Set BL.Tweet, [[BL.Tweet]]) -> [[BL.Tweet]]
+        groupByParent (x, acc) | Set.null x = acc
+        groupByParent (s, acc) =
+          let x = Set.findMax s
+              rest = x `Set.delete` s
+
+              ps = findParents rest x
               ps' = ps <> [x]
-              rest' = rest DL.\\ ps'
+              rest' = rest Set.\\ (Set.fromList ps')
           in groupByParent (rest', acc <> [ps'])
 
         -- XXX inefficient algo; proof of concept only; TODO refactor later
-        findParents :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
+        findParents :: Set.Set BL.Tweet -> BL.Tweet -> [BL.Tweet]
         findParents us t =
-          let p = filter (\t' -> Just (BL.id t') == BL.statusInReplyToStatusId t) us
+          let idx = fromMaybe Nothing . fmap ((flip Set.lookupIndex) us) . fmap dummyTweet . BL.statusInReplyToStatusId $ t
+              p = case idx of
+                    Just idx' -> [Set.elemAt idx' us]
+                    Nothing -> []
               ps = join $ findParents us <$> p
           in ps <> p
 
-        findChildren :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
-        findChildren us t =
-          let p = filter (\t' -> BL.statusInReplyToStatusId t' == Just (BL.id t)) us
-              ps = join $ findChildren us <$> p
-          in p <> ps
+        -- findChildren :: [BL.Tweet] -> BL.Tweet -> [BL.Tweet]
+        -- findChildren us t =
+        --   let p = filter (\t' -> BL.statusInReplyToStatusId t' == Just (BL.id t)) us
+        --       ps = join $ findChildren us <$> p
+        --   in p <> ps
 
-        us = unique $ old <> cur <> new <> HM.elems adhoc
-        grouped' = DL.reverse . groupByParent $ (DL.reverse us, [])
-        grouped = filter (\xs -> DL.last xs `DL.elem` cur) grouped'
+        us = old `Set.union` cur `Set.union` new `Set.union` Set.fromList (HM.elems adhoc)
+        grouped' = DL.reverse . groupByParent $ (us, [])
+        grouped = filter (\xs -> DL.last xs `Set.member` cur) grouped'
 
         tweetList (old, cur, new) =
           let c = case cmd of
                     Just ShowNew -> container'
                     otherwise    -> container
-          in c [list $ if DL.null cur then [noTweetsLabel "EOF"]
-                                      else fmap (block_ "thread-block" . (: []) . thread) grouped]
+          in c [list $ if Set.null cur then [noTweetsLabel "EOF"]
+                                       else fmap (block_ "thread-block" . (: []) . thread) grouped]
 
         refreshButton new =
           VD.h "div"
