@@ -3,11 +3,11 @@
 module UI.HTTP.Css where
 
 import           Clay
+import qualified Clay           as C
 import           Clay.Animation
-import qualified Clay        as C
-import           Data.Monoid ((<>))
-import           Data.Foldable (foldMap)
-import           Prelude hiding (rem)
+import           Data.Foldable  (foldMap)
+import           Data.Monoid    ((<>))
+import           Prelude        hiding (rem)
 
 entityColor = "#2FC2EF" :: Color
 baseColor = "#404040" :: Color
@@ -90,6 +90,7 @@ bodyCss = do
   ".username-tag" ? do
     fontWeight (weight 400)
     color entityColor
+    fontStyle italic
 
 
   ".colon" ? do
@@ -326,6 +327,8 @@ bodyCss = do
     display inlineBlock
     verticalAlign textTop
     "word-wrap" -: "break-word"
+    fontFamily ["Charter"] [serif]
+    fontWeight $ weight 200
 
   ".no-tweets" ? do
     textAlign (alignSide sideCenter)
