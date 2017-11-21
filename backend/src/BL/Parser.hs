@@ -1,11 +1,11 @@
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE FlexibleContexts          #-}
 
 module BL.Parser (parseTweet) where
 
 import           BL.Types         (TweetElement (..))
-import           Data.Text        (Text, unpack, pack)
+import           Data.Text        (Text, pack, unpack)
 import           Text.Parsec
 import           Text.Parsec.Text (Parser)
 
@@ -17,7 +17,11 @@ usernameAlphabet = ['a'..'z']++['A'..'Z']++['0'..'9']++"_"
 
 hashtagAlphabet = ['a'..'z']++['A'..'Z']++['0'..'9']++"_"
 
-whitespaces = " \n\t"
+whitespaces = " \t"
+
+lb = do
+  string "\n"
+  return LineBreak
 
 username = do
   char '@'
@@ -55,7 +59,7 @@ usernameOrText = try username <|> plaintext
 
 linkOrText = try link <|> plaintext
 
-chunk = try username <|> try hashtag <|> try link <|> plaintext <|> spcs
+chunk = try lb <|> username <|> try hashtag <|> try link <|> plaintext <|> spcs
 
 tweet :: Parser [TweetElement]
 tweet = do

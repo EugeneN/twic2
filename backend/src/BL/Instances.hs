@@ -1,18 +1,18 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE CPP                #-}
 
 module BL.Instances where
 
-import Data.Aeson
+import           Data.Aeson
 
-import BL.Types
-import Data.Maybe (fromMaybe, Maybe(..))
-import Control.Monad
-import Data.Text (Text)
+import           BL.Types
+import           Control.Monad
+import           Data.Maybe    (Maybe (..), fromMaybe)
+import           Data.Text     (Text)
 #ifndef __GHCJS__
-import BL.Parser (parseTweet)
+import           BL.Parser     (parseTweet)
 #endif
 
 
@@ -96,7 +96,7 @@ instance FromJSON BL.Types.Entities where
     ms <- x .:? "media"
 
     return $ BL.Types.Entities (fromMaybe [] urls) (fromMaybe [] hts) ms
-                                           
+
   parseJSON _ = fail "entities is expected to be an object"
 
 #else

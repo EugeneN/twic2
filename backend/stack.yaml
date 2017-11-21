@@ -1,7 +1,17 @@
 flags: {}
 extra-package-dbs: []
+
 packages:
 - '.'
+
+# - location: '../../twitter-types/'
+- location:
+    git: https://github.com/EugeneN/twitter-types.git
+    commit: 23d3caf945008584545d957c06d1ceb0c4d738ee
+  subdirs:
+  - twitter-types
+  extra-dep: true
+
 extra-deps:
 - twitter-conduit-0.2.2.1
 resolver: lts-6.13

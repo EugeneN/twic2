@@ -1,8 +1,8 @@
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE OverloadedStrings      #-}
-{-# LANGUAGE RankNTypes             #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE PartialTypeSignatures  #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes            #-}
 
 module BL.Core (
     Url
@@ -51,11 +51,12 @@ import           System.IO
 import           Web.Authenticate.OAuth
 
 import qualified Data.ByteString                as B
-import qualified Data.ByteString.Lazy                as BSL
 import qualified Data.ByteString.Char8          as B8
+import qualified Data.ByteString.Lazy           as BSL
 import           Network.HTTP.Conduit
 
-import           Control.Exception.Lifted       (try, displayException, SomeException(..))
+import           Control.Exception.Lifted       (SomeException (..),
+                                                 displayException, try)
 
 import           Control.Applicative
 import           Control.Concurrent             (MVar, ThreadId, forkIO,
@@ -70,9 +71,9 @@ import qualified Network.HTTP.Types             as HTTP
 
 import qualified BL.CloudDataLayer              as CDL
 import qualified BL.DataLayer                   as DL
+import           BL.Instances
 import           BL.Parser                      (parseTweet)
 import           BL.Types
-import           BL.Instances
 import qualified Config                         as CFG
 import           Data.Aeson
 import qualified Data.ByteString.Char8          as BS
@@ -128,7 +129,7 @@ retweetStatusToTweet s = Tweet { text               = parseTweet $ TT.rsText s
                                , BL.Types.statusInReplyToScreenName = Nothing
                                }
 
-statusRetweetToRetweet :: Maybe TT.Status -> Maybe Tweet
+
 statusToTweet :: TT.Status -> Tweet
 statusToTweet s = Tweet { text              = parseTweet $ TT.statusText s
                         , created_at        = pack $ show $ TT.statusCreatedAt s
@@ -137,7 +138,7 @@ statusToTweet s = Tweet { text              = parseTweet $ TT.statusText s
                         , user              = statusUserToAuthor $ TT.statusUser s
                         , entities          = statusEntitiesToEntities $ TT.statusEntities s
                         , extendedEntities  = statusEntitiesToEntities $ TT.statusExtendedEntities s
-                        , retweet           = statusRetweetToRetweet $ TT.statusRetweetedStatus s
+                        , retweet           = statusToTweet <$> TT.statusRetweetedStatus s
                         , status_favorited  = TT.statusFavorited s
                         , status_retweeted  = TT.statusRetweeted s
                         , BL.Types.statusInReplyToStatusId   = TT.statusInReplyToStatusId s
@@ -177,12 +178,6 @@ statusEntitiesToEntities (Just s) = BL.Types.Entities (xUrl <$> TT.enURLs s)
                               (xSize $ x ! "medium" )
                               (xSize $ x ! "small" )
   xSize x = EntityMediaSize (TT.msHeight x) (TT.msWidth x) (unpack $ TT.msResize x)
-
-statusRetweetToRetweet s = case s of
-    Nothing -> Nothing
-    Just s -> Just $ statusToTweet s
-
-
 
 --------------------------------------------------------------------------------
 

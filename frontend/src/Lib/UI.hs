@@ -1,28 +1,28 @@
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RecursiveDo           #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecursiveDo         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Lib.UI where
 
-import Prelude
-import Control.Applicative           ((<*>), (<$>))
+import           Control.Applicative ((<$>), (<*>))
+import           Prelude
 
-import Data.Map.Strict               (Map)
+import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
-import Data.Monoid
+import           Data.Monoid
 import qualified Data.Text           as T
 
 import qualified Data.VirtualDOM     as VD
 
-import qualified Data.JSString      as JSS
-import           GHCJS.Prim         (JSVal)
+import qualified Data.JSString       as JSS
+import           GHCJS.Prim          (JSVal)
 
-import qualified BL.Types           as BL
-import  BL.Instances
+import           BL.Instances
+import qualified BL.Types            as BL
 
 
 setTitle :: String -> IO ()
@@ -70,6 +70,9 @@ textLabel_ cls t = VD.h "span" (p_ [("class", cls)])                        [VD.
 errorLabel t   = VD.h "span" (p_ [("style", "padding: 10px; color: red;")]) [VD.text t]
 inlineLabel t  = VD.h "span" (p_ [("style", "padding: 0px;")])              [VD.text $ T.unpack t]
 inlineLabel_ v = VD.h "span" (p_ [("style", "padding: 0px;")])              [v]
+
+lineBreak = VD.h "br" (p_ [("style", "padding: 0px;")]) []
+
 link h t       = VD.h "a"    (p_ [("href", T.unpack h), ("target", "_blank")])                 [VD.text $ T.unpack t]
 link' cls h t  = VD.h "a"    (p_ [("class", cls), ("href", T.unpack h), ("target", "_blank")]) [VD.text $ T.unpack t]
 link_ h v      = VD.h "a"    (p_ [("href", T.unpack h), ("target", "_blank")])                 [v]

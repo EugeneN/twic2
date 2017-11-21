@@ -1,33 +1,33 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE CPP                #-}
 
 module BL.Types where
 
-import Prelude hiding (id)
+import           Prelude                 hiding (id)
 
 #ifndef __GHCJS__
 
 import           Control.Applicative
-import           Control.Concurrent     (MVar, ThreadId)
+import           Control.Concurrent      (MVar, ThreadId)
 import           Control.Exception.Base
 import           Control.Monad
 import           Data.Aeson
+import           Data.ByteString
 import           Data.Configurator
 import           Data.Configurator.Types
-import           Data.ByteString
 import           Network.HTTP.Conduit
 
 #endif
 
-import           Data.Time.Clock        (UTCTime (..))
-import           Data.Text              (Text)
 import           Data.ByteString
-import           Web.Twitter.Types      (User (..))
-import           Data.Int               (Int64)
+import           Data.Int                (Int64)
+import           Data.Text               (Text)
+import           Data.Time.Clock         (UTCTime (..))
 import           GHC.Generics
+import           Web.Twitter.Types       (User (..))
 
 type Url = String
 type Username = String
@@ -123,18 +123,19 @@ data TweetElement = AtUsername Text
                   | Retweet
                   | Spaces Text
                   | Unparsable Text
+                  | LineBreak
                   deriving (Show, Generic)
 
-data Tweet = Tweet { text       :: [TweetElement]
-                   , created_at :: Text
-                   , id         :: TweetId
-                   , id_str     :: String
-                   , user       :: Author
-                   , entities   :: Entities
-                   , extendedEntities :: Entities
-                   , retweet    :: Maybe Tweet
-                   , status_favorited :: Maybe Bool
-                   , status_retweeted :: Maybe Bool
+data Tweet = Tweet { text                      :: [TweetElement]
+                   , created_at                :: Text
+                   , id                        :: TweetId
+                   , id_str                    :: String
+                   , user                      :: Author
+                   , entities                  :: Entities
+                   , extendedEntities          :: Entities
+                   , retweet                   :: Maybe Tweet
+                   , status_favorited          :: Maybe Bool
+                   , status_retweeted          :: Maybe Bool
                    , statusInReplyToStatusId   :: Maybe TweetId
                    , statusInReplyToUserId     :: Maybe AuthorId
                    , statusInReplyToScreenName :: Maybe Text

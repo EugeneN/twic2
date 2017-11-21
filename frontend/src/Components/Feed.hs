@@ -1,48 +1,49 @@
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Components.Feed where
 
-import Prelude
-import Control.Applicative           ((<*>), (<$>), (<|>))
-import Control.Concurrent            (forkIO)
-import Control.Monad                 (void, forM_, when, join)
-import Control.Monad.IO.Class        (liftIO)
+import           Control.Applicative      ((<$>), (<*>), (<|>))
+import           Control.Concurrent       (forkIO)
+import           Control.Monad            (forM_, join, void, when)
+import           Control.Monad.IO.Class   (liftIO)
+import           Prelude
 
-import qualified Data.HashMap.Strict as HM
-import qualified Data.List           as DL
-import Data.Foldable                 (asum)
-import Data.Maybe                    (Maybe(..), isJust, isNothing, listToMaybe, catMaybes, fromMaybe)
-import Data.Monoid
-import qualified Data.Set            as Set
-import qualified Data.Text           as T
-import qualified Data.Text.Lazy.Builder as TLB
-import qualified Data.Text.Lazy      as TL
+import           Data.Foldable            (asum)
+import qualified Data.HashMap.Strict      as HM
+import qualified Data.List                as DL
+import           Data.Maybe               (Maybe (..), catMaybes, fromMaybe,
+                                           isJust, isNothing, listToMaybe)
+import           Data.Monoid
+import qualified Data.Set                 as Set
+import qualified Data.Text                as T
+import qualified Data.Text.Lazy           as TL
+import qualified Data.Text.Lazy.Builder   as TLB
 
-import qualified Reflex              as R
-import qualified Reflex.Host.App     as RHA
+import qualified Reflex                   as R
+import qualified Reflex.Host.App          as RHA
 
-import qualified Data.VirtualDOM     as VD
+import qualified Data.JSString            as JSS
+import qualified Data.JSString.RegExp     as RegExp
+import qualified Data.VirtualDOM          as VD
 import qualified JavaScript.Web.WebSocket as WS
-import qualified Data.JSString      as JSS
-import qualified Data.JSString.RegExp as RegExp
 
-import qualified HTMLEntities.Decoder as HE
+import qualified HTMLEntities.Decoder     as HE
 
-import qualified BL.Types           as BL
-import BL.Instances
+import           BL.Instances
+import qualified BL.Types                 as BL
 
-import UIConfig
-import Types
-import Lib.FRP
-import Lib.FW
-import Lib.UI
-import Lib.Net (getAPI)
-import Components.Busy
+import           Components.Busy
+import           Lib.FRP
+import           Lib.FW
+import           Lib.Net                  (getAPI)
+import           Lib.UI
+import           Types
+import           UIConfig
 
 
 allButLast n [] = []
@@ -542,6 +543,9 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         telToHtml t (BL.PlainText s)  = inlineLabel $ decodeHtmlEntities $ s
         telToHtml t (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
         telToHtml t BL.Retweet        = inlineLabel "Retweet"
+
+        telToHtml t BL.LineBreak      = lineBreak
+
         telToHtml t (BL.Spaces s)     = inlineLabel s
         telToHtml t (BL.Unparsable s) = inlineLabel s
 

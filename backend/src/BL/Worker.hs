@@ -16,16 +16,16 @@ import           Control.Lens.Action          (act, (^!))
 import           Control.Monad.Trans.Resource (MonadResource)
 
 import           Data.Aeson                   (FromJSON)
-import           Data.String                  (IsString)
 import qualified Data.Conduit.Combinators     as CC
+import           Data.String                  (IsString)
 
 import           Control.Monad
 import           Control.Monad.IO.Class
 import qualified Data.ByteString.Char8        as BS
 import           Data.Conduit
 import qualified Data.Conduit                 as C
-import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.Binary          as CB
+import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.Monoid                  ((<>))
 import qualified Data.Text                    as T
@@ -99,8 +99,10 @@ updateWorker db fv uv cfg = forkIO $ forever $ do
 
 
 -- copied from http://hackage.haskell.org/package/twitter-conduit-0.2.2.2/docs/src/Web-Twitter-Conduit-Stream.html#stream
--- and added code to record keep-alive messages from the api (\r\n), which are expected to be sent every 30s
--- twitter api doc reccomend to wait 90s (3 keep-alive cycles), and then reconnect immediately should no messages arrive
+-- and added code to record keep-alive messages from the api (\r\n),
+-- which are expected to be sent every 30s
+-- twitter api doc reccomend to wait 90s (3 keep-alive cycles),
+-- and then reconnect immediately should no messages arrive
 stream_ :: (MonadResource m)
         => TWInfo
         -> HTTP.Manager
@@ -110,13 +112,13 @@ stream_ info mgr req = do
     rsrc <- WTCB.getResponse info mgr =<< liftIO (WTCB.makeRequest req)
     return $ Web.Twitter.Conduit.responseBody rsrc
 
-saveLatestMessageFromApi :: (Eq t, IsString t) => MyDb -> t -> IO ()
+saveLatestMessageFromApi :: (Eq t, IsString t, Show t) => MyDb -> t -> IO ()
 saveLatestMessageFromApi db x = do
   curTime <- getCurrentTime
   saveCurTimeToDb db curTime
   if x == "\r\n" -- aka twitter streaming api's in-band hearbeat protocol message
     then debug $ "❤❤❤❤ got heartbeet from streaming api @ " <> show curTime
-    else debug $ "𝄞♪♫♬ got smth from streaming api @ " <> show curTime
+    else debug $ "𝄞♪♫♬ got smth from streaming api @ " <> show curTime <> " " <> show x
 
 streamWorker :: MyDb -> MVar FeedState -> Cfg -> IO ThreadId
 streamWorker db m cfg = forkIO $
