@@ -5,14 +5,15 @@
 
 module BL.Instances where
 
+import           Control.Applicative ((<|>))
 import           Data.Aeson
 
 import           BL.Types
 import           Control.Monad
-import           Data.Maybe    (Maybe (..), fromMaybe)
-import           Data.Text     (Text)
+import           Data.Maybe          (Maybe (..), fromMaybe)
+import           Data.Text           (Text)
 #ifndef __GHCJS__
-import           BL.Parser     (parseTweet)
+import           BL.Parser           (parseTweet)
 #endif
 
 
@@ -21,7 +22,8 @@ import           BL.Parser     (parseTweet)
 -- this parses tweet json returned from twitter api
 instance FromJSON Tweet where
   parseJSON (Object x) = do
-    text        <- x .: "text"
+    -- text        <- x .: "text"
+    text        <- ((x .: "extended_tweet" >>= (.: "full_text")) <|> x .: "text")
     created_at  <- x .: "created_at"
     id_         <- x .: "id"
     id_str      <- x .: "id_str"
