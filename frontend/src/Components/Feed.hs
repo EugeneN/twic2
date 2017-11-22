@@ -24,6 +24,8 @@ import qualified Data.Text                as T
 import qualified Data.Text.Lazy           as TL
 import qualified Data.Text.Lazy.Builder   as TLB
 
+import qualified Network.URI              as NU
+
 import qualified Reflex                   as R
 import qualified Reflex.Host.App          as RHA
 
@@ -394,7 +396,7 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         tweetOrSep Separator = VD.h "div" (p_ [("style", "color: #aaa; padding: 0px; border: 0px solid grey; width: auto; display: inline-block; margin: 0px; padding-left: 25px;")])
                                           [VD.text "↓"]
 
-        tweet t = panelRel $ [ toolbarRt t, toolbarRe t, toolbarLk t, toolbarGo t, author t, body t ]
+        tweet t = panelRel $ [ toolbarRt t, toolbarRe t, toolbarLk t, toolbarGo t, author t, body (fromMaybe t (BL.retweet t)) ]
                            <> entities (BL.entities t)
 
         renderMediaImage m = VD.h "div" (p_ [("class", "media")])
@@ -536,9 +538,18 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
 
         telToHtml t (BL.AtUsername s) = VD.h "span" (p_ [("class", "username-tag")]) [link ("https://twitter.com/" <> s) ("@" <> s)]
 
-        telToHtml t (BL.Link s) = case resolveLink t s of
-            Nothing -> inlineLabel_ $ link' "inline-link" s s
-            Just x  -> inlineLabel_ $ link' "inline-link" (T.pack $ BL.eExpandedUrl x) (T.pack $ BL.eDisplayUrl x)
+        telToHtml t (BL.Link s) =
+          case resolveLink t s of
+            Nothing -> inlineLabel_ $ link' "inline-link" s (T.pack . displayUri . T.unpack $ s)
+            Just x  -> inlineLabel_ $ link' "inline-link" (T.pack $ BL.eExpandedUrl x) (T.pack . displayUri $ BL.eExpandedUrl x)
+
+          where
+            displayUri u =
+              let x = do
+                        mu <- NU.parseURI u
+                        ma <- NU.uriAuthority mu
+                        pure $ NU.uriRegName ma
+              in fromMaybe u x
 
         telToHtml t (BL.PlainText s)  = inlineLabel $ decodeHtmlEntities $ s
         telToHtml t (BL.Hashtag s)    = VD.h "span" (p_ [("class", "hash-tag")]) [link ("https://twitter.com/hashtag/" <> s <> "?src=hash") ("#" <> s)]
