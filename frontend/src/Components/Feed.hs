@@ -292,15 +292,22 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             e = a || b || c || d
 
         case c of
-          False -> liftIO $ void . forkIO $ do
-            x :: Either String BL.TheResponse <- withBusy busyU .
-                                    getAPI . JSS.pack $ "/adhoc/?id=" <> show tid
-            case x of
-              Left e  -> (ntU $ Error "Adhoc request for parent thread failed" e) >> pure ()
-              Right (BL.Fail (BL.JsonApiError t m)) -> (ntU $ Error (T.unpack t) (T.unpack m)) >> pure ()
-              Right (BL.Ok (BL.JsonResponse _ ts)) -> forM_ ts adhocU
+          False -> liftIO $ void . forkIO $ go 3 tid
+          True  -> pure ()
 
-          otherwise -> pure ()
+      where
+        go count tid =
+          if count == 0
+          then
+            print $ "Adhoc requests for parent thread count exceeded, tid=" <> show tid
+          else do
+            x :: Either String BL.TheResponse <- withBusy busyU .
+                    getAPI . JSS.pack $ "/adhoc/?id=" <> show tid
+            case x of
+              Left e                                -> go (count - 1) tid
+              Right (BL.Fail (BL.JsonApiError t m)) -> go (count - 1) tid
+              Right (BL.Ok (BL.JsonResponse _ ts))  -> forM_ ts adhocU
+
 
     preloadThreads adhocCmdU x = case BL.statusInReplyToStatusId x of
       Just pid -> adhocCmdU pid >> pure ()

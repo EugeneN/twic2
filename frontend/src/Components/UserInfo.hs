@@ -197,5 +197,5 @@ userinfoComponent = do
 
     render showU modelU (Right BL.JsonUserInfo{..}, True) = cont $
       VD.h "div"
-           (p_ [("class", "user-info"), ("style", userInfoStyleStatic <> userInfoStyleDynamic uiData)])
+           (p_ [("class", "user-info"), ("style", userInfoStyleStatic <> ";" <> userInfoStyleDynamic uiData)])
            [closeButton showU modelU, renderUser uiData]
