@@ -8,7 +8,7 @@
 module Components.Feed where
 
 import           Control.Applicative      ((<$>), (<*>), (<|>))
-import           Control.Concurrent       (forkIO)
+import           Control.Concurrent       (forkIO, threadDelay)
 import           Control.Monad            (forM_, join, void, when)
 import           Control.Monad.IO.Class   (liftIO)
 import           Prelude
@@ -150,19 +150,31 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
         controllerU $ MarkRt t b
 
         let url = (if b then "/retweet/?id=" else "/unretweet/?id=") <> show (BL.id t)
-        x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
 
-        case x of
-          -- update tweet with actual result
-          Left e  -> do
-            controllerU $ MarkRt t (not b)
-            ntU $ Error "Retweet failed" e
+        let go count url =
+              if count == 0
+              then do
+                print "Retweet attempts count exceeded, giving up."
+                controllerU $ MarkRt t (not b)
+                ntU $ Error (if b then "Retweet definitely failed" else "Unretweet definitely failed") "👀"
 
-          Right (BL.Fail (BL.JsonApiError t' m)) -> do
-            controllerU $ MarkRt t (not b)
-            ntU $ Error (T.unpack t') (T.unpack m)
+              else do
+                x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
+                case x of
+                  -- update tweet with actual result
+                  Left e  -> do
+                    print $ "(Un)Retweet failed, retrying in 100000ns; error was: " <> show e
+                    threadDelay 100000
+                    go (count - 1) url
 
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Retweeted!" (mkTweetLink_ fs)
+                  Right (BL.Fail (BL.JsonApiError t' m)) -> do
+                    print $ "(Un)Retweet failed, retrying  in 100000ns; error was: " <> (T.unpack t') <> (T.unpack m)
+                    threadDelay 100000
+                    go (count - 1) url
+
+                  Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Retweeted!" (mkTweetLink_ fs)
+
+        go 3 url
 
       Reply t -> do
         print "TODO reply component" >> pure False
@@ -174,16 +186,29 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
       Love t b -> do
         controllerU $ MarkLv t b
         let url = (if b then "/star/?id=" else "/unstar/?id=") <> show (BL.id t)
-        x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
 
-        case x of
-          Left e -> do
-            controllerU $ MarkLv t (not b)
-            ntU $ Error ":-(" e
-          Right (BL.Fail (BL.JsonApiError t' m)) -> do
-            controllerU $ MarkLv t (not b)
-            ntU $ Error (T.unpack t') (T.unpack m)
-          Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Loved the tweet!" (mkTweetLink_ fs)
+        let go count url =
+              if count == 0
+              then do
+                print "Star attempts count exceeded, giving up."
+                controllerU $ MarkLv t (not b)
+                ntU $ Error (if b then "Star definitely failed" else "Unstar definitely failed") "👀"
+
+              else do
+                x :: Either String (BL.TheResponse) <- withBusy busyU . getAPI . JSS.pack $ url
+
+                case x of
+                  Left e -> do
+                    print $ "(Un)Star failed, retrying in 100000ns; error was: " <> show e
+                    threadDelay 100000
+                    go (count - 1) url
+                  Right (BL.Fail (BL.JsonApiError t' m)) -> do
+                    print $ "(Un)Star failed, retrying  in 100000ns; error was: " <> (T.unpack t') <> (T.unpack m)
+                    threadDelay 100000
+                    go (count - 1) url
+                  Right (BL.Ok (BL.JsonResponse _ fs))  -> pure True -- ntU $ Success "Loved the tweet!" (mkTweetLink_ fs)
+
+        go 3 url
 
       UserInfo u -> do
         requestUserInfoU (RequestUserInfo . T.unpack $ BL.screen_name u)
@@ -304,8 +329,8 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
             x :: Either String BL.TheResponse <- withBusy busyU .
                     getAPI . JSS.pack $ "/adhoc/?id=" <> show tid
             case x of
-              Left e                                -> go (count - 1) tid
-              Right (BL.Fail (BL.JsonApiError t m)) -> go (count - 1) tid
+              Left e                                -> threadDelay 100000 >> go (count - 1) tid
+              Right (BL.Fail (BL.JsonApiError t m)) -> threadDelay 100000 >> go (count - 1) tid
               Right (BL.Ok (BL.JsonResponse _ ts))  -> forM_ ts adhocU
 
 
