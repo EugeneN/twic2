@@ -54,6 +54,7 @@ extra-deps:
 - th-abstraction-0.2.3.0
 - kan-extensions-5.0.2
 - html-entities-1.1.4
+# - ghcjs-base-stub-0.1.0.4
 # - virtualdom-0.1.0.0
 
 ghc-options:

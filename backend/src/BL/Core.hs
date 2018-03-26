@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module BL.Core (
     Url
@@ -43,12 +44,14 @@ module BL.Core (
   , starUrl
   , unstarUrl
   , twInfo
+  , authorize
+  , getAccessToken
   ) where
 
 import           Data.Text                      (pack, unpack)
 
 import           System.IO
-import           Web.Authenticate.OAuth
+import qualified Web.Authenticate.OAuth         as OA
 
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Char8          as B8
@@ -79,7 +82,7 @@ import           Data.Aeson
 import qualified Data.ByteString.Char8          as BS
 import           Data.Conduit
 import qualified Data.Conduit.List              as CL
-import           Data.HashMap.Strict
+import           Data.HashMap.Strict            hiding (lookup)
 import           Data.Int                       (Int64)
 import           Data.Text.Encoding             (decodeUtf8)
 import           Data.Time.Clock                (NominalDiffTime, UTCTime (..),
@@ -89,12 +92,14 @@ import           GHC.Generics
 import           Prelude                        hiding (error, id)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
-import           Web.Twitter.Conduit
+import           Web.Twitter.Conduit            hiding (lookup)
 import           Web.Twitter.Conduit.Api        (usersShow)
 import           Web.Twitter.Conduit.Base       (call)
 import           Web.Twitter.Conduit.Parameters (UserParam (ScreenNameParam))
 import           Web.Twitter.Types
 import qualified Web.Twitter.Types              as TT
+
+import Control.Concurrent
 
 logRealm = "Core"
 
@@ -107,8 +112,34 @@ oauthToken :: Cfg -> OAuth
 oauthToken cfg = twitterOAuth { oauthConsumerKey = BS.pack (cfgOauthConsumerKey cfg)
                               , oauthConsumerSecret = BS.pack (cfgOauthConsumerSecret cfg) }
 
+getAccessToken ::  MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO String
+getAccessToken credentialStore oauthToken' oauthVerifier cfg = withManager $ \m -> do
+    let auth = oauthToken cfg
+    (t, cred) <- liftIO $ takeMVar credentialStore
+    -- when (t == oauthToken')
+    accessTokens <- OA.getAccessToken auth (OA.insert "oauth_verifier" oauthVerifier cred) m
+    liftIO $ debug $ "getAccessToken => t => " ++ show t  
+    return $ "Test"
+
+authorize :: MVar (BS.ByteString, Credential) -> Cfg -> IO String                               
+authorize credentialStore cfg = withManager $ \m -> do
+    let auth = oauthToken cfg
+    (cred :: Credential) <- OA.getTemporaryCredential auth m
+
+    case lookup "oauth_token" $ unCredential cred of
+        Just oauthToken -> do
+            let url = OA.authorizeUrl auth cred
+            liftIO $ debug $ "oauthToken " ++ show oauthToken
+            liftIO $ debug $ "URL " ++ show url
+            liftIO $ debug $ "Cred " ++ show cred
+
+            liftIO $ putMVar credentialStore (oauthToken, cred)
+            
+            return url
+        Nothing -> return "problem with oauth_token"    
+
 oauthCredential :: Cfg -> Credential
-oauthCredential cfg = newCredential (B8.pack (cfgAccessToken cfg)) (B8.pack (cfgAccessTokenSecret cfg))
+oauthCredential cfg = OA.newCredential (B8.pack (cfgAccessToken cfg)) (B8.pack (cfgAccessTokenSecret cfg))
 
 twInfo :: Cfg -> TWInfo
 twInfo cfg = setCredential (oauthToken cfg) (oauthCredential cfg) def
@@ -396,7 +427,7 @@ fetchContext fv cfg = do
         req <- parseUrl url
 
         res <- try $ withManager $ \m -> do
-                 signedreq <- signOAuth (oauthToken cfg) (oauthCredential cfg) req
+                 signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) req
                  httpLbs signedreq m
 
         case res of
@@ -431,7 +462,7 @@ writeApi url cfg = do
     req <- parseUrl url
     let req' = req { method = "POST" }
     res <- (try $ withManager $ \m -> do
-                   signedreq <- signOAuth (oauthToken cfg) (oauthCredential cfg) req'
+                   signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) req'
                    httpLbs signedreq m) :: IO (Either SomeException (Network.HTTP.Conduit.Response BSL.ByteString))
 
     case res of
@@ -445,7 +476,7 @@ readApi :: FromJSON a => Feed -> Cfg -> IO (Feed, Either (ApiError String) a)
 readApi feed cfg = do
   req <- parseUrl $ unfeedUrl feed
   res <- (try $ withManager $ \m -> do
-             signedreq <- signOAuth (oauthToken cfg) (oauthCredential cfg) req
+             signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) req
              httpLbs signedreq m) :: IO (Either SomeException (Network.HTTP.Conduit.Response BSL.ByteString))
 
   case res of

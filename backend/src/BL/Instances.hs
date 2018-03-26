@@ -86,6 +86,9 @@ instance ToJSON TheResponse
 instance FromJSON JsonUserInfo
 instance ToJSON JsonUserInfo
 
+instance FromJSON LoginInfo
+instance ToJSON LoginInfo
+
 -- instance FromJSON User
 -- instance ToJSON User
 

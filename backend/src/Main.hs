@@ -39,7 +39,7 @@ import           System.Exit
 import           Data.Configurator
 import           Data.Configurator.Types
 import           Data.Text                 (pack, unpack)
-
+import           Network.Wai.Middleware.Cors (simpleCors)
 -- # if defined(mingw32_HOST_OS)
 --import GHC.IO.IOMode
 -- import System.Win32.DebugApi (PHANDLE)
@@ -74,7 +74,7 @@ badConf = "\nBad or uncomplete `" ++ userConfig ++ "` config file.\n"
 
 
 httpWorker :: Application -> IO ThreadId
-httpWorker =  forkIO . run port
+httpWorker =  forkIO . run port . simpleCors
 
 runManager :: forall b. MVar (AppState MyDb) -> IO b
 runManager = monitorAppBus

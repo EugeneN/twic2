@@ -37,6 +37,9 @@ foreign import javascript unsafe "window.open($1, '_blank')"
 foreign import javascript unsafe "window.scrollTo(0,0)"
     scrollToTop :: IO ()
 
+foreign import javascript unsafe "document.location = $1"
+    redirect :: JSS.JSString -> IO ()
+
 newtype Attrs = A { unA :: [(String, String)]}
 
 p (A x) = VD.prop x

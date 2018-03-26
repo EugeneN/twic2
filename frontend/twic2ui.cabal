@@ -20,6 +20,7 @@ executable twic2ui
                      , Components.UserInfo
                      , Components.Notification
                      , Components.Busy
+                     , Components.Login
                      , Types
                      , App
                      , UIConfig
@@ -38,7 +39,6 @@ executable twic2ui
 
   build-depends:       base
                      , base-prelude
-                     , ghcjs-base
                      , aeson
                      , bytestring
                      , bytestring-conversion
@@ -54,3 +54,7 @@ executable twic2ui
                      , unordered-containers
                      , html-entities
                      , network-uri
+  if impl(ghcjs)
+    build-depends: ghcjs-base
+  if !impl(ghcjs)
+    build-depends: ghcjs-base-stub >= 0.1.0.2 && < 1                   

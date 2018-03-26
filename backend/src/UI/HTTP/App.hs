@@ -15,7 +15,7 @@ import           BL.Core                             (fetchContext, followUser,
                                                       sendFetchAccountRequest,
                                                       unstarUrl, starUrl, tweetUrl,
                                                       unfollowUser, updateFeed,
-                                                      writeApi, readApi)
+                                                      writeApi, readApi, authorize, getAccessToken)
 import           BL.DataLayer                        (MyDb)
 import           BL.Types                            (FeedState, Message (..),
                                                       ScreenName, Tweet, Cfg,
@@ -30,7 +30,7 @@ import           Control.Concurrent                  (MVar, ThreadId, forkIO,
                                                       modifyMVar_, myThreadId,
                                                       newMVar, putMVar,
                                                       readMVar, takeMVar,
-                                                      threadDelay, tryTakeMVar)
+                                                      threadDelay, tryTakeMVar, newEmptyMVar)
 import           Control.Exception                   (fromException, handle)
 import           Control.Monad                       (forM_, forever)
 import           Control.Monad.IO.Class
@@ -45,12 +45,13 @@ import           Data.Text.Encoding                  (decodeUtf8)
 import           Data.Tuple
 import           Data.UUID                           (UUID)
 import           Data.UUID.V4                        (nextRandom)
-import           Network.HTTP.Types                  (HeaderName, status200)
+import           Network.HTTP.Types                  (HeaderName, status200, status302)
 import           Network.HTTP.Types.Header           (ResponseHeaders)
 import           Network.Wai                         (Application, pathInfo,
                                                       queryString, responseFile,
                                                       responseLBS,
                                                       responseStream)
+import           Network.Wai.Util                    (redirect')                                                      
 import qualified Network.Wai.Handler.WebSockets      as WaiWS
 import qualified Network.WebSockets                  as WS
 import           Prelude                             hiding (error)
@@ -58,7 +59,7 @@ import           System.Log.Handler.Simple
 import           System.Log.Logger
 import           Text.Blaze.Html.Renderer.Utf8       (renderHtmlBuilder)
 import           UI.HTTP.Html                        (homePage)
-import           UI.HTTP.Json                        (justFeedMessagesToJson,
+import           UI.HTTP.Json                        (loginJson, justFeedMessagesToJson,
                                                       justUnreadCountToJson,
                                                       justUserInfoToJson,
                                                       justUserToJson,
@@ -69,7 +70,10 @@ import           Blaze.ByteString.Builder.ByteString (fromByteString)
 import           Data.FileEmbed                      (embedFile,
                                                       embedStringFile)
 import           Data.Time.Clock                     (UTCTime (..))
+import           Network.URI                         (parseURI)
+import           Data.Maybe                          (fromJust)
 
+import           Web.Authenticate.OAuth              (Credential)
 
 logRealm = "HttpApp"
 
@@ -108,6 +112,9 @@ embeddedHandler mime resourse request response =
 httpapp :: UTCTime -> MyDb -> Cfg -> Application -- = Request -> ResourceT IO Response
 httpapp st db cfg request sendResponse = do
   debug $ show $ pathInfo request
+
+  (credentialStore :: MVar (B8.ByteString, Credential)) <- newEmptyMVar
+
   case pathInfo request of
     []                  -> homeHandler request sendResponse
 
@@ -137,6 +144,8 @@ httpapp st db cfg request sendResponse = do
       "userinfo" -> userinfoHandler     cfg request sendResponse
       "follow"   -> followHandler True  cfg request sendResponse
       "unfollow" -> followHandler False cfg request sendResponse
+      "login"    -> loginHandler        credentialStore cfg request sendResponse
+      "callback" -> callbackHandler     credentialStore cfg request sendResponse
       _          -> notFoundHandler         request sendResponse
 
 makeClient :: UUID -> WS.Connection -> Client
@@ -411,6 +420,26 @@ replyHandler cfg request response = case queryString request of
         replyStream :: TweetBody -> B8.ByteString -> (Builder -> IO ()) -> IO () -> IO ()
         replyStream status reply_to_id send flush =
             writeApi (replyUrl status reply_to_id) cfg >>= send . tweetToJson >> flush
+
+loginHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
+-- loginHandler cfg request response = response =<< redirect' status302 [] . fromJust . parseURI =<< authorize cfg
+loginHandler cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream where
+    loginStream :: (Builder -> IO ()) -> IO () -> IO ()
+    loginStream send flush = do
+        authorize cs cfg >>= send . loginJson . T.pack >> flush
+
+callbackHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
+callbackHandler cs cfg request response = case queryString request of
+    [("oauth_token", Just oauthToken), ("oauth_verifier", Just oauthVerifier)] -> do
+        debug $ show oauthToken ++ " -> " ++ show oauthVerifier
+        t <- getAccessToken cs oauthToken oauthVerifier cfg
+        response =<< (redirect' status302 [] . fromJust . parseURI $ "http://localhost:3000")
+        -- response $ responseStream status200 [mimeJSON] (callbackStream oauthToken oauthVerifier)
+    _ -> response $ responseLBS status200 [mimeJSON] "bad request"
+    
+    -- where
+    --     callbackStream oauthToken oauthVerifier send flush = 
+    --         -- (send . loginJson . T.pack $ "Test") >> flush
 
 statHandler :: UTCTime -> MyDb -> Cfg -> Application
 statHandler st db cfg request response = response $ responseStream status200 [mimeText] (respStream st db)

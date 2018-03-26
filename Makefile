@@ -15,11 +15,11 @@ setup:
 	cd frontend && stack setup --install-ghc --no-system-ghc
 
 backend: frontend
-	(cd backend && stack build)
+	(cd backend && stack build --fast)
 
 frontend:
 	cd frontend \
-	  && stack build \
+	  && stack build --fast \
 	  && cp `stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/all.js ../webexe/Main.js \
 	  && cp `stack path --dist-dir`/build/twic2ui/twic2ui.jsexe/* ../webexe/ \
 		&& echo "Installed jsexe to ./webexe/"

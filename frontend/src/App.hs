@@ -33,6 +33,7 @@ import Components.Feed                (feedComponent)
 import Components.UserInfo            (userinfoComponent)
 import Components.Notification        (notificationComponent)
 import Components.Busy                (busyComponent)
+import Components.Login               (loginComponent)
 
 
 data AppBLAction = Something deriving (Show, Eq)
@@ -49,12 +50,13 @@ theApp = do
   (notificationComponentViewD, ntU) <- notificationComponent
   (busyComponentViewD, busyU) <- busyComponent ntU
   (userinfoComponentViewD, requestUserInfoU) <- userinfoComponent
+  (loginComponentViewD, _) <- loginComponent
   (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU busyU
 
-  let resultViewDyn = layout <$> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
+  let resultViewDyn = layout <$> loginComponentViewD <*> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    layout notification feed userinfo busy =
-      notification <> userinfo <> busy <> columns [(feed, 100)] 
+    layout login notification feed userinfo busy =
+      login <> notification <> userinfo <> busy <> columns [(feed, 100)] 

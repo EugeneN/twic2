@@ -59,6 +59,7 @@ userinfoComponent = do
     showU True
     void . forkIO $ do
       x <- liftIO . getAPI . JSS.pack $ "http://localhost:3000/userinfo?sn=" <> screenName
+      print $ "UserInfo => " <> show x
       modelU x
       pure ()
 

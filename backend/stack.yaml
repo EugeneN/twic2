@@ -14,4 +14,6 @@ packages:
 
 extra-deps:
 - twitter-conduit-0.2.2.1
+- acid-state-0.14.3
+
 resolver: lts-6.13

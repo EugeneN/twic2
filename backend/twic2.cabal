@@ -40,6 +40,9 @@ Executable twic
     , http-types
     , wai                       >= 1.3
     , wai-extra                 >= 1.3
+    , wai-util
+    , network-uri
+    , wai-cors
     , warp                      >= 1.3
     , blaze-html                >= 0.5
     , blaze-markup              >= 0.5.1
