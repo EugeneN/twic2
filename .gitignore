@@ -11,6 +11,7 @@ SourceGraph/**
 .project
 twic.log
 twic.cfg
+twic.json
 oauth-info.txt
 
 backend/.stack-work
