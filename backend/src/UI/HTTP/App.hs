@@ -1,36 +1,40 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 module UI.HTTP.App where
 
-import           BL.Core                             (fetchContext, followUser,
-                                                      getStatus, readHistory,
+import           BL.Core                             (adhocTweetUrl, authorize,
+                                                      fetchContext, followUser,
+                                                      getAccessToken, getStatus,
+                                                      readApi, readHistory,
                                                       readUserInfo,
                                                       readUserstream, replyUrl,
-                                                      unretweetUrl, retweetUrl,
-                                                      saveLastSeen, adhocTweetUrl,
+                                                      retweetUrl, saveLastSeen,
                                                       saveLastSeenAsync,
                                                       sendFetchAccountRequest,
-                                                      unstarUrl, starUrl, tweetUrl,
-                                                      unfollowUser, updateFeed,
-                                                      writeApi, readApi, authorize, getAccessToken)
+                                                      starUrl, tweetUrl,
+                                                      unfollowUser,
+                                                      unretweetUrl, unstarUrl,
+                                                      updateFeed, writeApi)
 import           BL.DataLayer                        (MyDb)
-import           BL.Types                            (FeedState, Message (..),
-                                                      ScreenName, Tweet, Cfg,
+import           BL.Types                            (ApiError, Cfg, Feed,
+                                                      FeedMessage (..),
+                                                      FeedState, Message (..),
+                                                      ScreenName, Tweet,
                                                       TweetBody, TweetId,
-                                                      UpdateMessage, FeedMessage(..),
-                                                      Feed, ApiError)
+                                                      UpdateMessage)
 import           Blaze.ByteString.Builder            (Builder, fromByteString)
 import           Config                              (heartbeatDelay)
 import           Control.Applicative                 ((<$>))
 import           Control.Concurrent                  (MVar, ThreadId, forkIO,
                                                       killThread, modifyMVar,
                                                       modifyMVar_, myThreadId,
-                                                      newMVar, putMVar,
-                                                      readMVar, takeMVar,
-                                                      threadDelay, tryTakeMVar, newEmptyMVar)
+                                                      newEmptyMVar, newMVar,
+                                                      putMVar, readMVar,
+                                                      takeMVar, threadDelay,
+                                                      tryTakeMVar)
 import           Control.Exception                   (fromException, handle)
 import           Control.Monad                       (forM_, forever)
 import           Control.Monad.IO.Class
@@ -45,33 +49,35 @@ import           Data.Text.Encoding                  (decodeUtf8)
 import           Data.Tuple
 import           Data.UUID                           (UUID)
 import           Data.UUID.V4                        (nextRandom)
-import           Network.HTTP.Types                  (HeaderName, status200, status302)
+import           Network.HTTP.Types                  (HeaderName, status200,
+                                                      status302)
 import           Network.HTTP.Types.Header           (ResponseHeaders)
 import           Network.Wai                         (Application, pathInfo,
                                                       queryString, responseFile,
                                                       responseLBS,
                                                       responseStream)
-import           Network.Wai.Util                    (redirect')                                                      
 import qualified Network.Wai.Handler.WebSockets      as WaiWS
+import           Network.Wai.Util                    (redirect')
 import qualified Network.WebSockets                  as WS
 import           Prelude                             hiding (error)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
 import           Text.Blaze.Html.Renderer.Utf8       (renderHtmlBuilder)
 import           UI.HTTP.Html                        (homePage)
-import           UI.HTTP.Json                        (loginJson, justFeedMessagesToJson,
+import           UI.HTTP.Json                        (adhocToJson,
+                                                      justFeedMessagesToJson,
                                                       justUnreadCountToJson,
                                                       justUserInfoToJson,
-                                                      justUserToJson,
+                                                      justUserToJson, loginJson,
                                                       retweetToJson, starToJson,
-                                                      tweetToJson, adhocToJson)
+                                                      tweetToJson)
 
 import           Blaze.ByteString.Builder.ByteString (fromByteString)
 import           Data.FileEmbed                      (embedFile,
                                                       embedStringFile)
+import           Data.Maybe                          (fromJust)
 import           Data.Time.Clock                     (UTCTime (..))
 import           Network.URI                         (parseURI)
-import           Data.Maybe                          (fromJust)
 
 import           Web.Authenticate.OAuth              (Credential)
 
@@ -109,11 +115,9 @@ embeddedHandler mime resourse request response =
   bstr = BSL.fromStrict resourse
 
 
-httpapp :: UTCTime -> MyDb -> Cfg -> Application -- = Request -> ResourceT IO Response
-httpapp st db cfg request sendResponse = do
+httpapp :: UTCTime -> MyDb -> Cfg -> MVar (B8.ByteString, Credential) -> Application -- = Request -> ResourceT IO Response
+httpapp st db cfg credentialStore request sendResponse = do
   debug $ show $ pathInfo request
-
-  (credentialStore :: MVar (B8.ByteString, Credential)) <- newEmptyMVar
 
   case pathInfo request of
     []                  -> homeHandler request sendResponse
@@ -174,9 +178,10 @@ app :: UTCTime -> MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar UpdateMes
 app st db fv uv accv cfg = do
     cs <- newMVar ([] :: WSState)
     _ <- startBroadcastWorker db fv cs cfg
+    (credentialStore :: MVar (B8.ByteString, Credential)) <- newEmptyMVar
     return $ WaiWS.websocketsOr WS.defaultConnectionOptions
                                 (wsapp db fv uv accv cs)
-                                (httpapp st db cfg)
+                                (httpapp st db cfg credentialStore)
 
 wsapp :: MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar UpdateMessage -> MVar WSState
       -> WS.ServerApp
@@ -426,7 +431,7 @@ loginHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
 loginHandler cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream where
     loginStream :: (Builder -> IO ()) -> IO () -> IO ()
     loginStream send flush = do
-        authorize cs cfg >>= send . loginJson . T.pack >> flush
+        authorize cs cfg >>= send . loginJson . fmap T.pack >> flush
 
 callbackHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
 callbackHandler cs cfg request response = case queryString request of
@@ -436,9 +441,9 @@ callbackHandler cs cfg request response = case queryString request of
         response =<< (redirect' status302 [] . fromJust . parseURI $ "http://localhost:3000")
         -- response $ responseStream status200 [mimeJSON] (callbackStream oauthToken oauthVerifier)
     _ -> response $ responseLBS status200 [mimeJSON] "bad request"
-    
+
     -- where
-    --     callbackStream oauthToken oauthVerifier send flush = 
+    --     callbackStream oauthToken oauthVerifier send flush =
     --         -- (send . loginJson . T.pack $ "Test") >> flush
 
 statHandler :: UTCTime -> MyDb -> Cfg -> Application

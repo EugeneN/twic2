@@ -92,4 +92,5 @@ tweetToJson (Left (TransportError x)) =
 
 tweetToJson (Right t) = fromLazyByteString $ encode JsonResponse {okTitle="ok", okFeedMessages=[t]}
 
-loginJson t = fromLazyByteString $ encode LoginInfo {t = t}
+loginJson (Right t) = fromLazyByteString $ encode LoginInfo {t = t}
+loginJson (Left t) = error $ "loginJson " ++ t
