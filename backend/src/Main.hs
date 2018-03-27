@@ -36,8 +36,6 @@ import qualified Control.Exception         as E
 import           Data.Time.Clock           (diffUTCTime, getCurrentTime)
 import           System.Exit
 
-import           Data.Configurator
-import           Data.Configurator.Types
 import           Data.Text                 (pack, unpack)
 import           Network.Wai.Middleware.Cors (simpleCors)
 -- # if defined(mingw32_HOST_OS)
@@ -49,6 +47,8 @@ import System.Posix.Signals
 
 import           System.Posix.Signals
 import           System.Process
+import qualified Data.ByteString.Lazy as BL
+import           Data.Aeson
 
 logRealm = "Main"
 
@@ -130,7 +130,7 @@ handleAction "serve" rs = do
     (RunState st db _ _ _ _ _ fv av uv accv cfg) <- readMVar rs
 
     info $ "Listening on port " ++ show port
-    app_ <- app st db fv uv accv cfg
+    app_ <- app st db fv uv accv cfg rs
     hwid <- httpWorker app_
 
     info "Starting a timeoutWorker"
@@ -198,25 +198,11 @@ ctrlCHandler av = Catch $ do
 
 withConfig :: FilePath -> (Cfg -> IO ()) -> IO ()
 withConfig name t = do
-    mb <- E.try $ load [Required name]
-    case mb of
-        Left (err :: E.SomeException) -> putStrLn ("Error: " ++ show err) >> putStrLn confUsage
+    rawConfig <- BL.readFile name
 
-        Right cfg -> do
-          ck  <- lkp cfg "oauthConsumerKey"
-          cks <- lkp cfg "oauthConsumerSecret"
-          at  <- lkp cfg "accessToken"
-          ats <- lkp cfg "accessTokenSecret"
-          cdb <- lkp cfg "cloudDbUrl"
-
-          case Cfg <$> ck <*> cks <*> at <*> ats <*> cdb of
-            Nothing -> putStrLn badConf
-            Just c  -> t c
-
-          where
-            lkp cfg i = do
-              v <- Data.Configurator.lookup cfg i :: IO (Maybe String)
-              return v
+    case eitherDecode rawConfig of
+        Right cfg@(Cfg {}) -> t cfg
+        Left e -> putStrLn ("Error: " ++ show e)
 
 main :: IO ()
 main = do
@@ -244,7 +230,7 @@ main = do
           accv     <- newEmptyMVar
           now      <- getCurrentTime
 
-          runstate <- newMVar $ makeAppState now db Nothing Nothing Nothing Nothing Nothing fv av uv accv cfg
+          (runstate :: MVar (AppState MyDb)) <- newMVar $ makeAppState now db Nothing Nothing Nothing Nothing Nothing fv av uv accv cfg
 
           installHandler keyboardSignal (ctrlCHandler av) Nothing
 

@@ -21,6 +21,7 @@ Executable twic
       BL.Types
       BL.Instances
       BL.Worker
+      BL.Utils,
       Config
       UI.CLI.Cli
       UI.HTTP.App
@@ -32,6 +33,7 @@ Executable twic
       bytestring                >= 0.9.1
     , base
     , aeson
+    , aeson-pretty
     , authenticate-oauth
     , http-conduit
     , text
@@ -76,7 +78,6 @@ Executable twic
     , containers
     , file-embed
     , process
-    , configurator
     , lens-action
     , lens
     , resourcet

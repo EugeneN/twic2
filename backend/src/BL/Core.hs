@@ -4,6 +4,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE RecordWildCards       #-}
 
 module BL.Core (
     Url
@@ -101,6 +102,9 @@ import qualified Web.Twitter.Types              as TT
 
 import           Control.Concurrent
 import           System.Directory
+import           Data.Maybe
+import           Data.Aeson
+import           Data.Aeson.Encode.Pretty
 
 logRealm = "Core"
 
@@ -113,26 +117,28 @@ oauthToken :: Cfg -> OAuth
 oauthToken cfg = twitterOAuth { oauthConsumerKey = BS.pack (cfgOauthConsumerKey cfg)
                               , oauthConsumerSecret = BS.pack (cfgOauthConsumerSecret cfg) }
 
-getAccessToken ::  MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO ()
-getAccessToken credentialStore oauthToken' oauthVerifier cfg = do
+getAccessToken ::  MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO ()
+getAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
     let auth = oauthToken cfg
     (t, cred) <- takeMVar credentialStore
 
     accessTokens <- withManager $ \m -> OA.getAccessToken auth (OA.insert "oauth_verifier" oauthVerifier cred) m
-    debug $ "getAccessToken => t => " ++ show accessTokens
+    
+    case (lookup "oauth_token" $ unCredential accessTokens, lookup "oauth_token_secret" $ unCredential accessTokens) of
+        (ot@(Just _), ots@(Just _)) -> do
+            let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot, cfgAccessTokenSecret = BS.unpack <$> ots }
+            modifyMVar_ rs (\(s@RunState{..}) -> return $ s { conf = cfg' })
+            BSL.writeFile CFG.userConfig $ encodePretty cfg'
+        (_, _) -> debug "we have some problem"
 
-    writeFile CFG.oauthInfo $ show accessTokens
-
-authorize :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
-authorize credentialStore cfg = do
+authorize :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
+authorize rs credentialStore cfg = do
     let auth = oauthToken cfg
     (cred :: Credential) <- withManager $ \m -> OA.getTemporaryCredential auth m
 
-    isExists <- doesFileExist CFG.oauthInfo
-
-    if isExists
-        then return $ Right $ NotNeedAuth
-        else
+    case (cfgAccessToken cfg, cfgAccessTokenSecret cfg) of
+        (Just _, Just _) -> return $ Right $ NotNeedAuth
+        (Nothing, Nothing) -> 
             case lookup "oauth_token" $ unCredential cred of
                 Just oauthToken -> do
                     let url = OA.authorizeUrl auth cred
@@ -149,7 +155,7 @@ authorize credentialStore cfg = do
                 Nothing -> return $ Left "problem with oauth_token"
 
 oauthCredential :: Cfg -> Credential
-oauthCredential cfg = OA.newCredential (B8.pack (cfgAccessToken cfg)) (B8.pack (cfgAccessTokenSecret cfg))
+oauthCredential cfg = OA.newCredential (B8.pack (fromJust $ cfgAccessToken cfg)) (B8.pack (fromJust $ cfgAccessTokenSecret cfg))
 
 twInfo :: Cfg -> TWInfo
 twInfo cfg = setCredential (oauthToken cfg) (oauthCredential cfg) def

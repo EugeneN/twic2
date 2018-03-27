@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module UI.HTTP.App where
 
@@ -81,6 +82,9 @@ import           Network.URI                         (parseURI)
 
 import           Web.Authenticate.OAuth              (Credential)
 
+import           BL.DataLayer
+import           BL.Types
+
 logRealm = "HttpApp"
 
 info     = infoM logRealm
@@ -115,9 +119,11 @@ embeddedHandler mime resourse request response =
   bstr = BSL.fromStrict resourse
 
 
-httpapp :: UTCTime -> MyDb -> Cfg -> MVar (B8.ByteString, Credential) -> Application -- = Request -> ResourceT IO Response
-httpapp st db cfg credentialStore request sendResponse = do
+httpapp :: UTCTime -> MyDb -> Cfg -> MVar (B8.ByteString, Credential) -> MVar (AppState MyDb) -> Application -- = Request -> ResourceT IO Response
+httpapp st db cfg credentialStore rs request sendResponse = do
   debug $ show $ pathInfo request
+
+  RunState {..} <- readMVar rs
 
   case pathInfo request of
     []                  -> homeHandler request sendResponse
@@ -135,21 +141,21 @@ httpapp st db cfg credentialStore request sendResponse = do
 -- #endif
 
     path -> case Prelude.head path of
-      "retweet"  -> retweetHandler      cfg request sendResponse
-      "unretweet"-> unretweetHandler    cfg request sendResponse
-      "adhoc"    -> getAdhocTweetHandler cfg request sendResponse
-      "star"     -> starHandler         cfg request sendResponse
-      "unstar"   -> unstarHandler       cfg request sendResponse
-      "tweet"    -> tweetHandler        cfg request sendResponse
-      "reply"    -> replyHandler        cfg request sendResponse
-      "stat"     -> statHandler st db   cfg request sendResponse
-      "history"  -> historyHandler      cfg request sendResponse
-      "userfeed" -> userfeedHandler     cfg request sendResponse
-      "userinfo" -> userinfoHandler     cfg request sendResponse
-      "follow"   -> followHandler True  cfg request sendResponse
-      "unfollow" -> followHandler False cfg request sendResponse
-      "login"    -> loginHandler        credentialStore cfg request sendResponse
-      "callback" -> callbackHandler     credentialStore cfg request sendResponse
+      "retweet"  -> retweetHandler      conf request sendResponse
+      "unretweet"-> unretweetHandler    conf request sendResponse
+      "adhoc"    -> getAdhocTweetHandler conf request sendResponse
+      "star"     -> starHandler         conf request sendResponse
+      "unstar"   -> unstarHandler       conf request sendResponse
+      "tweet"    -> tweetHandler        conf request sendResponse
+      "reply"    -> replyHandler        conf request sendResponse
+      "stat"     -> statHandler st db   conf request sendResponse
+      "history"  -> historyHandler      conf request sendResponse
+      "userfeed" -> userfeedHandler     conf request sendResponse
+      "userinfo" -> userinfoHandler     conf request sendResponse
+      "follow"   -> followHandler True  conf request sendResponse
+      "unfollow" -> followHandler False conf request sendResponse
+      "login"    -> loginHandler        rs credentialStore conf request sendResponse
+      "callback" -> callbackHandler     rs credentialStore conf request sendResponse
       _          -> notFoundHandler         request sendResponse
 
 makeClient :: UUID -> WS.Connection -> Client
@@ -173,15 +179,15 @@ sendToClients db cs ts cfg = do
 broadcast :: BSL.ByteString -> WSState -> IO ()
 broadcast msg clients = forM_ clients $ \(_, conn) -> WS.sendTextData conn msg
 
-app :: UTCTime -> MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar UpdateMessage -> Cfg
+app :: UTCTime -> MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar UpdateMessage -> Cfg -> MVar (AppState MyDb)
     -> IO Application
-app st db fv uv accv cfg = do
+app st db fv uv accv cfg rs = do
     cs <- newMVar ([] :: WSState)
     _ <- startBroadcastWorker db fv cs cfg
     (credentialStore :: MVar (B8.ByteString, Credential)) <- newEmptyMVar
     return $ WaiWS.websocketsOr WS.defaultConnectionOptions
                                 (wsapp db fv uv accv cs)
-                                (httpapp st db cfg credentialStore)
+                                (httpapp st db cfg credentialStore rs)
 
 wsapp :: MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar UpdateMessage -> MVar WSState
       -> WS.ServerApp
@@ -426,18 +432,18 @@ replyHandler cfg request response = case queryString request of
         replyStream status reply_to_id send flush =
             writeApi (replyUrl status reply_to_id) cfg >>= send . tweetToJson >> flush
 
-loginHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
+loginHandler :: MVar (AppState MyDb) -> MVar (B8.ByteString, Credential) -> Cfg -> Application
 -- loginHandler cfg request response = response =<< redirect' status302 [] . fromJust . parseURI =<< authorize cfg
-loginHandler cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream where
+loginHandler rs cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream where
     loginStream :: (Builder -> IO ()) -> IO () -> IO ()
     loginStream send flush = do
-        authorize cs cfg >>= send . loginJson >> flush
+        authorize rs cs cfg >>= send . loginJson >> flush
 
-callbackHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
-callbackHandler cs cfg request response = case queryString request of
+callbackHandler :: MVar (AppState MyDb) -> MVar (B8.ByteString, Credential) -> Cfg -> Application
+callbackHandler rs cs cfg request response = case queryString request of
     [("oauth_token", Just oauthToken), ("oauth_verifier", Just oauthVerifier)] -> do
         debug $ show oauthToken ++ " -> " ++ show oauthVerifier
-        getAccessToken cs oauthToken oauthVerifier cfg
+        getAccessToken rs cs oauthToken oauthVerifier cfg
         response =<< (redirect' status302 [] . fromJust . parseURI $ "http://localhost:3000")
         -- response $ responseStream status200 [mimeJSON] (callbackStream oauthToken oauthVerifier)
     _ -> response $ responseLBS status200 [mimeJSON] "bad request"

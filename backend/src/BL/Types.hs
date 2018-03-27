@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module BL.Types where
 
@@ -16,8 +17,6 @@ import           Control.Exception.Base
 import           Control.Monad
 import           Data.Aeson
 import           Data.ByteString
-import           Data.Configurator
-import           Data.Configurator.Types
 import           Network.HTTP.Conduit
 
 #endif
@@ -28,6 +27,10 @@ import           Data.Text               (Text)
 import           Data.Time.Clock         (UTCTime (..))
 import           GHC.Generics
 import           Web.Twitter.Types       (User (..))
+
+import           Data.Aeson
+import           Data.Maybe
+import           BL.Utils
 
 type Url = String
 type Username = String
@@ -91,9 +94,28 @@ makeAppState a b c d e f g h j i k l =
 
 data Cfg = Cfg { cfgOauthConsumerKey    :: String
                , cfgOauthConsumerSecret :: String
-               , cfgAccessToken         :: String
-               , cfgAccessTokenSecret   :: String
-               , cfgCloudDbUrl          :: String } deriving Show
+               , cfgAccessToken         :: Maybe String
+               , cfgAccessTokenSecret   :: Maybe String
+               , cfgCloudDbUrl          :: String } deriving (Show, Generic)
+
+instance FromJSON Cfg where
+  parseJSON (Object x) = do
+    cfgOauthConsumerKey <- x .: "oauthConsumerKey"
+    cfgOauthConsumerSecret <- x .: "oauthConsumerSecret"
+    cfgAccessToken <- x .:? "accessToken"
+    cfgAccessTokenSecret <- x .:? "accessTokenSecret"
+    cfgCloudDbUrl <- x .: "cloudDbUrl"
+
+    return $ Cfg {..}
+    
+  parseJSON _ = mzero
+
+instance ToJSON Cfg where
+  toJSON (Cfg {..}) = object $ catMaybes [ "oauthConsumerKey" .== cfgOauthConsumerKey
+                                         , "oauthConsumerSecret" .== cfgOauthConsumerSecret
+                                         , "accessToken" .=? cfgAccessToken
+                                         , "accessTokenSecret" .=? cfgAccessTokenSecret
+                                         , "cloudDbUrl" .== cfgCloudDbUrl]     
 
 data AppState a = RunState { startTime        :: UTCTime
                            , db               :: a
