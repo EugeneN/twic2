@@ -2,6 +2,7 @@ module Config where
 
 serverName         = "api.twitter.com"
 
+oauthInfo          = "oauth-info.txt"
 userConfig         = "twic.cfg"
 logFile            = "twic.log"
 

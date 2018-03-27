@@ -431,20 +431,16 @@ loginHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
 loginHandler cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream where
     loginStream :: (Builder -> IO ()) -> IO () -> IO ()
     loginStream send flush = do
-        authorize cs cfg >>= send . loginJson . fmap T.pack >> flush
+        authorize cs cfg >>= send . loginJson >> flush
 
 callbackHandler :: MVar (B8.ByteString, Credential) -> Cfg -> Application
 callbackHandler cs cfg request response = case queryString request of
     [("oauth_token", Just oauthToken), ("oauth_verifier", Just oauthVerifier)] -> do
         debug $ show oauthToken ++ " -> " ++ show oauthVerifier
-        t <- getAccessToken cs oauthToken oauthVerifier cfg
+        getAccessToken cs oauthToken oauthVerifier cfg
         response =<< (redirect' status302 [] . fromJust . parseURI $ "http://localhost:3000")
         -- response $ responseStream status200 [mimeJSON] (callbackStream oauthToken oauthVerifier)
     _ -> response $ responseLBS status200 [mimeJSON] "bad request"
-
-    -- where
-    --     callbackStream oauthToken oauthVerifier send flush =
-    --         -- (send . loginJson . T.pack $ "Test") >> flush
 
 statHandler :: UTCTime -> MyDb -> Cfg -> Application
 statHandler st db cfg request response = response $ responseStream status200 [mimeText] (respStream st db)

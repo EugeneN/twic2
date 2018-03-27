@@ -100,6 +100,7 @@ import           Web.Twitter.Types
 import qualified Web.Twitter.Types              as TT
 
 import           Control.Concurrent
+import           System.Directory
 
 logRealm = "Core"
 
@@ -112,36 +113,40 @@ oauthToken :: Cfg -> OAuth
 oauthToken cfg = twitterOAuth { oauthConsumerKey = BS.pack (cfgOauthConsumerKey cfg)
                               , oauthConsumerSecret = BS.pack (cfgOauthConsumerSecret cfg) }
 
-getAccessToken ::  MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO String
+getAccessToken ::  MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO ()
 getAccessToken credentialStore oauthToken' oauthVerifier cfg = do
     let auth = oauthToken cfg
     (t, cred) <- takeMVar credentialStore
-    -- when (t == oauthToken')
-    accessTokens <- withManager $ \m -> OA.getAccessToken auth (OA.insert "oauth_verifier" oauthVerifier cred) m
-    debug $ "getAccessToken => t => " ++ show t
-    return $ "Test"
 
-authorize :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String String)
+    accessTokens <- withManager $ \m -> OA.getAccessToken auth (OA.insert "oauth_verifier" oauthVerifier cred) m
+    debug $ "getAccessToken => t => " ++ show accessTokens
+
+    writeFile CFG.oauthInfo $ show accessTokens
+
+authorize :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
 authorize credentialStore cfg = do
     let auth = oauthToken cfg
-    -- m <- newManager
     (cred :: Credential) <- withManager $ \m -> OA.getTemporaryCredential auth m
 
+    isExists <- doesFileExist CFG.oauthInfo
 
-    case lookup "oauth_token" $ unCredential cred of
-        Just oauthToken -> do
-            let url = OA.authorizeUrl auth cred
-            debug $ "oauthToken " ++ show oauthToken
-            debug $ "URL " ++ show url
-            debug $ "Cred " ++ show cred
+    if isExists
+        then return $ Right $ NotNeedAuth
+        else
+            case lookup "oauth_token" $ unCredential cred of
+                Just oauthToken -> do
+                    let url = OA.authorizeUrl auth cred
+                    debug $ "oauthToken " ++ show oauthToken
+                    debug $ "URL " ++ show url
+                    debug $ "Cred " ++ show cred
 
-            z <- tryPutMVar credentialStore (oauthToken, cred)
+                    z <- tryPutMVar credentialStore (oauthToken, cred)
 
-            debug $ "tryPutMVar " ++ show z
+                    debug $ "tryPutMVar " ++ show z
 
-            return $ Right url
+                    return $ Right $ NeedAuth $ pack url
 
-        Nothing -> return $ Left "problem with oauth_token"
+                Nothing -> return $ Left "problem with oauth_token"
 
 oauthCredential :: Cfg -> Credential
 oauthCredential cfg = OA.newCredential (B8.pack (cfgAccessToken cfg)) (B8.pack (cfgAccessTokenSecret cfg))

@@ -197,7 +197,7 @@ data JsonUserInfo = JsonUserInfo { uiTitle :: Text
                                  , uiData  :: User
                                  } deriving (Show, Generic)
 
-data LoginInfo = LoginInfo { t :: Text } deriving (Show, Generic)                                 
+data LoginInfo = NeedAuth { t :: Text } | NotNeedAuth deriving (Show, Generic)                                 
 
 data Show a => ApiError a = ApiError String | TransportError a deriving Show
 

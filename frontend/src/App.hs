@@ -28,19 +28,34 @@ import Types
 import Lib.FRP
 import Lib.FW
 import Lib.UI
+import Lib.Net                        (getAPI)
 import Lib.WebSocket
 import Components.Feed                (feedComponent)
 import Components.UserInfo            (userinfoComponent)
 import Components.Notification        (notificationComponent)
 import Components.Busy                (busyComponent)
-import Components.Login               (loginComponent)
 
+import Control.Concurrent             (forkIO)
+import Control.Monad.IO.Class         (liftIO)
+
+import qualified Data.JSString        as JSS
+import qualified Data.Text            as T
 
 data AppBLAction = Something deriving (Show, Eq)
 
-
 theApp :: TheApp t m l Counter
 theApp = do
+
+  (loginInfo :: Either String BL.LoginInfo) <- liftIO . getAPI . JSS.pack $ "http://localhost:3000/login"
+
+  liftIO $ print $ "LoginInfo => " <> show loginInfo
+
+  case loginInfo of
+    Right t -> case t of
+      BL.NeedAuth t -> liftIO $ redirect $ JSS.pack $ T.unpack t
+      BL.NotNeedAuth -> return ()
+    Left e -> liftIO $ print $ "Error => " <> show e
+
   (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent
   (childControllerE :: R.Event t ChildAction, childControllerU) <- RHA.newExternalEvent
 
@@ -50,13 +65,12 @@ theApp = do
   (notificationComponentViewD, ntU) <- notificationComponent
   (busyComponentViewD, busyU) <- busyComponent ntU
   (userinfoComponentViewD, requestUserInfoU) <- userinfoComponent
-  (loginComponentViewD, _) <- loginComponent
   (feedComponentViewD, _) <- feedComponent childControllerE (wsi, wsReady) requestUserInfoU ntU busyU
 
-  let resultViewDyn = layout <$> loginComponentViewD <*> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
+  let resultViewDyn = layout <$> notificationComponentViewD <*> feedComponentViewD <*> userinfoComponentViewD <*> busyComponentViewD
 
   return (resultViewDyn, pure (Counter 0))
 
   where
-    layout login notification feed userinfo busy =
-      login <> notification <> userinfo <> busy <> columns [(feed, 100)] 
+    layout notification feed userinfo busy =
+      notification <> userinfo <> busy <> columns [(feed, 100)] 

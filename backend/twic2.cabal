@@ -55,6 +55,7 @@ Executable twic
     , split
     , wai-app-static
     , system-fileio
+    , directory
     -- , wai-dispatch
     , mtl
     , acid-state
