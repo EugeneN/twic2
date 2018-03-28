@@ -52,7 +52,7 @@ import           Data.UUID.V4                        (nextRandom)
 import           Network.HTTP.Types                  (HeaderName, status200,
                                                       status302)
 import           Network.HTTP.Types.Header           (ResponseHeaders)
-import           Network.Wai                         (Application, pathInfo,
+import           Network.Wai                         (Application, Request, pathInfo,
                                                       queryString, responseFile,
                                                       responseLBS,
                                                       responseStream)
@@ -122,8 +122,7 @@ httpapp :: UTCTime -> MyDb -> MVar (B8.ByteString, Credential) -> MVar (AppState
 httpapp st db credentialStore rs request sendResponse = do
   debug $ "httpapp => " ++ (show $ pathInfo request)
 
-  rs' <- readMVar rs
-  let cfg = conf rs'
+  cfg <- conf <$> readMVar rs
 
   debug $ "httpapp => cfg " ++ show cfg
 
@@ -156,7 +155,7 @@ httpapp st db credentialStore rs request sendResponse = do
       "userinfo" -> userinfoHandler     cfg request sendResponse
       "follow"   -> followHandler True  cfg request sendResponse
       "unfollow" -> followHandler False cfg request sendResponse
-      "login"    -> loginHandler        rs credentialStore cfg request sendResponse
+      "login"    -> loginHandler        rs credentialStore request sendResponse
       "callback" -> oauthCallbackHandler     rs credentialStore cfg request sendResponse
       _          -> notFoundHandler         request sendResponse
 
@@ -435,12 +434,12 @@ replyHandler cfg request response = case queryString request of
         replyStream status reply_to_id send flush =
             writeApi (replyUrl status reply_to_id) cfg >>= send . tweetToJson >> flush
 
-loginHandler :: MVar (AppState MyDb) -> MVar (B8.ByteString, Credential) -> Cfg -> Application
-loginHandler rs cs cfg request response = response $ responseStream status200 [mimeJSON] loginStream
+loginHandler :: MVar (AppState MyDb) -> MVar (B8.ByteString, Credential) -> Application
+loginHandler rs cs request response = response $ responseStream status200 [mimeJSON] loginStream
     where
         loginStream :: (Builder -> IO ()) -> IO () -> IO ()
         loginStream send flush = do
-            checkAuthentication rs cs cfg >>= send . loginJson >> flush
+            checkAuthentication rs cs >>= send . loginJson >> flush
 
 oauthCallbackHandler :: MVar (AppState MyDb) -> MVar (B8.ByteString, Credential) -> Cfg -> Application
 oauthCallbackHandler rs cs cfg request response = case queryString request of

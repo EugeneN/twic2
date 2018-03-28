@@ -104,6 +104,7 @@ import           System.Directory
 import           Data.Maybe
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty
+import           Control.Monad.Except
 
 logRealm = "Core"
 
@@ -130,28 +131,40 @@ obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
             BSL.writeFile CFG.userConfig $ encodePretty cfg'
         (_, _) -> debug "we have some problem"
 
-checkAuthentication :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
-checkAuthentication rs credentialStore cfg = do
+renewalAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        
+renewalAuthToken cs cfg = do
     let auth = oauthToken cfg
     (cred :: Credential) <- withManager $ \m -> OA.getTemporaryCredential auth m
 
+    case lookup "oauth_token" $ unCredential cred of
+        Just oauthToken -> do
+            let url = OA.authorizeUrl auth cred
+            debug $ "oauthToken " ++ show oauthToken
+            debug $ "URL " ++ show url
+            debug $ "Cred " ++ show cred
+
+            z <- tryPutMVar cs (oauthToken, cred)
+
+            debug $ "tryPutMVar " ++ show z
+
+            return $ Right $ NeedAuth $ pack url
+
+        Nothing -> return $ Left "problem with oauth_token"
+
+checkAuthentication :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> IO (Either String LoginInfo)
+checkAuthentication rs cs = do
+    cfg <- conf <$> readMVar rs
+
     case (cfgAccessToken cfg, cfgAccessTokenSecret cfg) of
-        (Just _, Just _) -> return $ Right $ NotNeedAuth
-        (Nothing, Nothing) -> 
-            case lookup "oauth_token" $ unCredential cred of
-                Just oauthToken -> do
-                    let url = OA.authorizeUrl auth cred
-                    debug $ "oauthToken " ++ show oauthToken
-                    debug $ "URL " ++ show url
-                    debug $ "Cred " ++ show cred
+        (Just _, Just _) -> do
+            res <- (try $ withManager $ \m -> do
+                signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) =<< parseUrl accountSettingsUrl
+                httpLbs signedreq m) :: IO (Either SomeException (Network.HTTP.Conduit.Response BSL.ByteString))
 
-                    z <- tryPutMVar credentialStore (oauthToken, cred)
-
-                    debug $ "tryPutMVar " ++ show z
-
-                    return $ Right $ NeedAuth $ pack url
-
-                Nothing -> return $ Left "problem with oauth_token"
+            case res of
+                Right _ -> return $ Right $ NotNeedAuth
+                Left _ -> renewalAuthToken cs cfg
+        _ -> renewalAuthToken cs cfg
 
 oauthCredential :: Cfg -> Credential
 oauthCredential cfg = OA.newCredential (B8.pack (fromJust $ cfgAccessToken cfg)) (B8.pack (fromJust $ cfgAccessTokenSecret cfg))
