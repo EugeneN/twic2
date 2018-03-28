@@ -4,7 +4,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE RecordWildCards       #-}
 
 module BL.Core (
     Url
@@ -45,8 +44,8 @@ module BL.Core (
   , starUrl
   , unstarUrl
   , twInfo
-  , authorize
-  , getAccessToken
+  , checkAuthentication
+  , obtainAccessToken
   ) where
 
 import           Data.Text                      (pack, unpack)
@@ -117,8 +116,8 @@ oauthToken :: Cfg -> OAuth
 oauthToken cfg = twitterOAuth { oauthConsumerKey = BS.pack (cfgOauthConsumerKey cfg)
                               , oauthConsumerSecret = BS.pack (cfgOauthConsumerSecret cfg) }
 
-getAccessToken ::  MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO ()
-getAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
+obtainAccessToken ::  MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> BS.ByteString -> BS.ByteString -> Cfg -> IO ()
+obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
     let auth = oauthToken cfg
     (t, cred) <- takeMVar credentialStore
 
@@ -127,12 +126,12 @@ getAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
     case (lookup "oauth_token" $ unCredential accessTokens, lookup "oauth_token_secret" $ unCredential accessTokens) of
         (ot@(Just _), ots@(Just _)) -> do
             let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot, cfgAccessTokenSecret = BS.unpack <$> ots }
-            modifyMVar_ rs (\(s@RunState{..}) -> return $ s { conf = cfg' })
+            modifyMVar_ rs (\(s@RunState {}) -> return $ s { conf = cfg' })
             BSL.writeFile CFG.userConfig $ encodePretty cfg'
         (_, _) -> debug "we have some problem"
 
-authorize :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
-authorize rs credentialStore cfg = do
+checkAuthentication :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)
+checkAuthentication rs credentialStore cfg = do
     let auth = oauthToken cfg
     (cred :: Credential) <- withManager $ \m -> OA.getTemporaryCredential auth m
 
@@ -440,6 +439,7 @@ fetchContext fv cfg = do
     where
     fetchSettings :: Url -> Cfg -> IO (Either JsonApiError TASettings)
     fetchSettings url cfg = do
+        debug $ "fetchSettings => cfg " ++ show cfg
         req <- parseUrl url
 
         res <- try $ withManager $ \m -> do
@@ -475,6 +475,7 @@ fetchContext fv cfg = do
 
 writeApi :: Url -> Cfg -> IO (Either (ApiError _) FeedMessage)
 writeApi url cfg = do
+    debug $ "writeApi => cfg " ++ show cfg
     req <- parseUrl url
     let req' = req { method = "POST" }
     res <- (try $ withManager $ \m -> do
@@ -490,6 +491,7 @@ writeApi url cfg = do
 
 readApi :: FromJSON a => Feed -> Cfg -> IO (Feed, Either (ApiError String) a)
 readApi feed cfg = do
+  debug $ "readApi => cfg " ++ show cfg
   req <- parseUrl $ unfeedUrl feed
   res <- (try $ withManager $ \m -> do
              signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) req

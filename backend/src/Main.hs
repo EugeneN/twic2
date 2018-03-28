@@ -116,7 +116,7 @@ runManager = monitorAppBus
                 info "done"
 
                 info "☑☑☑☑ Starting new stream worker... "
-                newWorkerId <- streamWorker db fv cfg
+                newWorkerId <- streamWorker db fv rs
                 info "done"
 
                 _ <- swapMVar rs (RunState st db twi (Just newWorkerId) hwi uvi afwi fv av uv accv cfg)
@@ -130,20 +130,20 @@ handleAction "serve" rs = do
     (RunState st db _ _ _ _ _ fv av uv accv cfg) <- readMVar rs
 
     info $ "Listening on port " ++ show port
-    app_ <- app st db fv uv accv cfg rs
+    app_ <- app st db fv uv accv rs
     hwid <- httpWorker app_
 
     info "Starting a timeoutWorker"
     twid <- timeoutWorker db av
 
     info "Starting an updateWorker"
-    uwid <- updateWorker db fv uv cfg
+    uwid <- updateWorker db fv uv rs
 
     info "Starting a streamWorker"
-    swid <- streamWorker db fv cfg
+    swid <- streamWorker db fv rs
 
     info "Starting an account fetch worker"
-    acwid <- accountFetchWorker accv fv cfg
+    acwid <- accountFetchWorker accv fv rs
 
     _ <- swapMVar rs (RunState st db (Just twid) (Just swid) (Just hwid) (Just uwid) (Just acwid) fv av uv accv cfg)
 
@@ -161,16 +161,16 @@ handleAction "cli" rs = do
     twid <- timeoutWorker db av
 
     info "Starting an updateWorker"
-    uwid <- updateWorker db fv uv cfg
+    uwid <- updateWorker db fv uv rs
 
     info "Updating feed"
     BLC.updateFeed uv
 
     info "Starting a streamWorker"
-    swid <- streamWorker db fv cfg
+    swid <- streamWorker db fv rs
 
     info "Starting an account fetch worker"
-    acwid <- accountFetchWorker accv fv cfg
+    acwid <- accountFetchWorker accv fv rs
 
     _ <- swapMVar rs (RunState st db (Just twid) (Just swid) (Just cwid) (Just uwid) (Just acwid) fv av uv accv cfg)
 

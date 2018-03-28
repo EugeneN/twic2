@@ -84,18 +84,20 @@ timeoutWorker db ch = forkIO $ forever $ do
 
 saveCurTimeToDb = writeTime
 
-accountFetchWorker :: MVar UpdateMessage -> MVar FeedState -> Cfg -> IO ThreadId
-accountFetchWorker accv fv cfg = forkIO $ forever $ do
+accountFetchWorker :: MVar UpdateMessage -> MVar FeedState -> MVar (AppState MyDb) -> IO ThreadId
+accountFetchWorker accv fv rs = forkIO $ forever $ do
     fetchreq <- takeMVar accv
+    rs' <- readMVar rs
     debug $ "Got fetch account request at " ++ show fetchreq
-    BLC.fetchContext fv cfg
+    BLC.fetchContext fv (conf rs')
 
-updateWorker :: MyDb -> MVar FeedState -> MVar UpdateMessage -> Cfg -> IO ThreadId
-updateWorker db fv uv cfg = forkIO $ forever $ do
+updateWorker :: MyDb -> MVar FeedState -> MVar UpdateMessage -> MVar (AppState MyDb) -> IO ThreadId
+updateWorker db fv uv rs = forkIO $ forever $ do
     ur <- takeMVar uv
+    rs' <- readMVar rs
     debug $ "*** Got an update request at " ++ show ur
     -- TODO throttle update requests here
-    BLC.updateFeedSync db fv cfg
+    BLC.updateFeedSync db fv (conf rs')
 
 
 -- copied from http://hackage.haskell.org/package/twitter-conduit-0.2.2.2/docs/src/Web-Twitter-Conduit-Stream.html#stream
@@ -120,10 +122,11 @@ saveLatestMessageFromApi db x = do
     then debug $ "❤❤❤❤ got heartbeet from streaming api @ " <> show curTime
     else debug $ "𝄞♪♫♬ got smth from streaming api @ " <> show curTime <> " " <> show x
 
-streamWorker :: MyDb -> MVar FeedState -> Cfg -> IO ThreadId
-streamWorker db m cfg = forkIO $
-  withManager$ \mgr -> do
-    rsrc <- stream_ (BLC.twInfo cfg) mgr userstream
+streamWorker :: MyDb -> MVar FeedState -> MVar (AppState MyDb) -> IO ThreadId
+streamWorker db m rs = do
+  rs' <- readMVar rs
+  forkIO $ withManager$ \mgr -> do
+    rsrc <- stream_ (BLC.twInfo (conf rs')) mgr userstream
 
     let pass = passthroughSink (CL.mapM_ (liftIO . saveLatestMessageFromApi db)) (\_ -> pure ())
     let rsrc' = rsrc $=+ pass
@@ -145,9 +148,9 @@ streamWorker db m cfg = forkIO $
   handleTweet t = BLC.handleIncomingFeedMessages db m [TweetMessage t]
 
   handleEvent TT.Event { evCreatedAt = _
-                       , evTargetObject = _
-                       , evEvent = "follow"
-                       , evTarget = (ETUser user)
-                       , evSource = _} = BLC.handleIncomingFeedMessages db m [UserMessage user]
+                        , evTargetObject = _
+                        , evEvent = "follow"
+                        , evTarget = (ETUser user)
+                        , evSource = _} = BLC.handleIncomingFeedMessages db m [UserMessage user]
 
   handleEvent x = debug $ "???? got unknown event: " ++ show x
