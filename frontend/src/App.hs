@@ -53,7 +53,7 @@ theApp = do
   case loginInfo of
     Right t -> case t of
       BL.NeedAuth t -> liftIO $ redirect $ JSS.pack $ T.unpack t
-      BL.NotNeedAuth -> return ()
+      BL.NeedNoAuth -> return ()
     Left e -> liftIO $ print $ "Error => " <> show e
 
   (controllerE :: R.Event t AppBLAction, controllerU) <- RHA.newExternalEvent

@@ -131,8 +131,8 @@ obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
             BSL.writeFile CFG.userConfig $ encodePretty cfg'
         (_, _) -> debug "we have some problem"
 
-renewalAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        
-renewalAuthToken cs cfg = do
+renewAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        
+renewAuthToken cs cfg = do
     let auth = oauthToken cfg
     (cred :: Credential) <- withManager $ \m -> OA.getTemporaryCredential auth m
 
@@ -162,9 +162,9 @@ checkAuthentication rs cs = do
                 httpLbs signedreq m) :: IO (Either SomeException (Network.HTTP.Conduit.Response BSL.ByteString))
 
             case res of
-                Right _ -> return $ Right $ NotNeedAuth
-                Left _ -> renewalAuthToken cs cfg
-        _ -> renewalAuthToken cs cfg
+                Right _ -> return $ Right $ NeedNoAuth
+                Left _ -> renewAuthToken cs cfg
+        _ -> renewAuthToken cs cfg
 
 oauthCredential :: Cfg -> Credential
 oauthCredential cfg = OA.newCredential (B8.pack (fromJust $ cfgAccessToken cfg)) (B8.pack (fromJust $ cfgAccessTokenSecret cfg))
