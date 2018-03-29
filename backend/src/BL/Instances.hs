@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module BL.Instances where
 
@@ -10,10 +11,11 @@ import           Data.Aeson
 
 import           BL.Types
 import           Control.Monad
-import           Data.Maybe          (Maybe (..), fromMaybe)
+import           Data.Maybe          (Maybe (..), fromMaybe, catMaybes)
 import           Data.Text           (Text)
 #ifndef __GHCJS__
 import           BL.Parser           (parseTweet)
+import           BL.Utils
 #endif
 
 
@@ -194,3 +196,38 @@ instance FromJSON TweetElement
 #endif
 
 instance ToJSON TweetElement
+
+#ifndef __GHCJS__
+instance FromJSON Cfg where
+  parseJSON (Object x) = do
+    cfgOauthConsumerKey <- x .: "oauthConsumerKey"
+    cfgOauthConsumerSecret <- x .: "oauthConsumerSecret"
+    cfgAccessToken <- x .:? "accessToken"
+    cfgAccessTokenSecret <- x .:? "accessTokenSecret"
+    cfgCloudDbUrl <- x .: "cloudDbUrl"
+
+    return $ Cfg {..}
+    
+  parseJSON _ = mzero
+
+instance ToJSON Cfg where
+  toJSON (Cfg {..}) = object $ catMaybes [ "oauthConsumerKey" .== cfgOauthConsumerKey
+                                         , "oauthConsumerSecret" .== cfgOauthConsumerSecret
+                                         , "accessToken" .=? cfgAccessToken
+                                         , "accessTokenSecret" .=? cfgAccessTokenSecret
+                                         , "cloudDbUrl" .== cfgCloudDbUrl]
+
+instance FromJSON AccessCfg where
+  parseJSON (Object x) = do
+    acfgAccessToken <- x .:? "accessToken"
+    acfgAccessTokenSecret <- x .:? "accessTokenSecret"
+
+    return $ AccessCfg {..}
+    
+  parseJSON _ = mzero
+
+instance ToJSON AccessCfg where
+  toJSON (AccessCfg {..}) = object $ catMaybes [ "accessToken" .=? acfgAccessToken
+                                                , "accessTokenSecret" .=? acfgAccessTokenSecret]                                           
+
+#endif                                                

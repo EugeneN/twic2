@@ -46,13 +46,12 @@ module BL.Core (
   , twInfo
   , checkAuthentication
   , obtainAccessToken
+  , writeAccessConfig
   ) where
 
 import           Data.Text                      (pack, unpack)
 
-import           System.Directory
 import           System.IO
-import           System.FilePath
 
 import qualified Web.Authenticate.OAuth         as OA
 
@@ -106,8 +105,14 @@ import           Control.Concurrent
 import           System.Directory
 import           Data.Maybe
 import           Data.Aeson
-import           Data.Aeson.Encode.Pretty
 import           Control.Monad.Except
+
+import           Data.Aeson.Encode.Pretty
+import           System.Directory
+import           System.FilePath
+
+import           BL.Types
+import           Data.Functor ((<$))
 
 logRealm = "Core"
 
@@ -115,6 +120,23 @@ info  = infoM    logRealm
 warn  = warningM logRealm
 debug = debugM   logRealm
 error = errorM   logRealm
+
+writeAccessConfig :: Bool -> AccessCfg -> IO String
+writeAccessConfig rewrite value = do
+    homePath <- getHomeDirectory
+
+    let twicFolderPath = homePath </> ".twic"
+    let twicFilePath = twicFolderPath </> CFG.accessConfig
+
+    createDirectoryIfMissing True twicFolderPath
+    fileExists <- doesFileExist twicFilePath
+
+    case (fileExists, rewrite) of
+        (False, _) -> BSL.writeFile twicFilePath $ encodePretty value
+        (True, True) -> BSL.writeFile twicFilePath $ encodePretty value
+        (_, _) -> return ()
+
+    return twicFilePath
 
 oauthToken :: Cfg -> OAuth
 oauthToken cfg = twitterOAuth { oauthConsumerKey = BS.pack (cfgOauthConsumerKey cfg)
@@ -129,11 +151,9 @@ obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
     
     case (lookup "oauth_token" $ unCredential accessTokens, lookup "oauth_token_secret" $ unCredential accessTokens) of
         (ot@(Just _), ots@(Just _)) -> do
-            homePath <- getHomeDirectory
             let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot, cfgAccessTokenSecret = BS.unpack <$> ots }
-            let acfg = AccessCfg { acfgAccessToken = cfgAccessToken cfg', acfgAccessTokenSecret = cfgAccessTokenSecret cfg' }
             modifyMVar_ rs (\(s@RunState {}) -> return $ s { conf = cfg' })
-            BSL.writeFile (homePath </> ".twic" </> CFG.accessConfig) $ encodePretty acfg
+            void $ writeAccessConfig True $ AccessCfg { acfgAccessToken = cfgAccessToken cfg', acfgAccessTokenSecret = cfgAccessTokenSecret cfg' }
         (_, _) -> debug "we have some problem"
 
 renewAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        

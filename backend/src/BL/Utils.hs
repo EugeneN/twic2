@@ -1,9 +1,9 @@
 module BL.Utils where
 
-import Data.Aeson    
-import Data.Aeson.Types
+import           Data.Aeson    
+import           Data.Aeson.Types
 
-import Data.Text
+import           Data.Text
 
 (.==) :: (ToJSON a, Applicative f) => Text -> a -> f Pair
 (.==) text value = pure $ text .= value

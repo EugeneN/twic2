@@ -29,10 +29,7 @@ import           System.Log.Formatter
 import           System.Log.Handler        (setFormatter)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
--- import           System.IO                 (stderr)
-import           System.Directory
-import           System.IO
-import           System.FilePath
+import           System.IO                 (stderr)
 
 import qualified BL.CloudDataLayer         as CDL
 import qualified Control.Exception         as E
@@ -201,16 +198,7 @@ ctrlCHandler av = Catch $ do
 
 withConfig :: FilePath -> (Cfg -> IO ()) -> IO ()
 withConfig name t = do
-    homePath <- getHomeDirectory
-
-    let twicFolderPath = homePath </> ".twic"
-    let twicFilePath = twicFolderPath </> accessConfig
-
-    fileExists <- doesFileExist twicFilePath
-    createDirectoryIfMissing True twicFolderPath
-
-    unless fileExists $ writeFile twicFilePath "{}"
-
+    twicFilePath <- BLC.writeAccessConfig False (AccessCfg { acfgAccessToken = Nothing, acfgAccessTokenSecret = Nothing })
     rawAccessConfig <- BL.readFile twicFilePath
     rawConfig <- BL.readFile name
 

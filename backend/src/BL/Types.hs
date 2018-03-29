@@ -18,7 +18,6 @@ import           Control.Monad
 import           Data.Aeson
 import           Data.ByteString
 import           Network.HTTP.Conduit
-
 #endif
 
 import           Data.ByteString
@@ -30,7 +29,6 @@ import           Web.Twitter.Types       (User (..))
 
 import           Data.Aeson
 import           Data.Maybe
-import           BL.Utils
 
 type Url = String
 type Username = String
@@ -95,43 +93,11 @@ makeAppState a b c d e f g h j i k l =
 data AccessCfg = AccessCfg { acfgAccessToken         :: Maybe String
                            , acfgAccessTokenSecret   :: Maybe String } deriving (Show, Generic)
 
-instance FromJSON AccessCfg where
-  parseJSON (Object x) = do
-    acfgAccessToken <- x .:? "accessToken"
-    acfgAccessTokenSecret <- x .:? "accessTokenSecret"
-
-    return $ AccessCfg {..}
-    
-  parseJSON _ = mzero
-
-instance ToJSON AccessCfg where
-  toJSON (AccessCfg {..}) = object $ catMaybes [ "accessToken" .=? acfgAccessToken
-                                               , "accessTokenSecret" .=? acfgAccessTokenSecret]   
-
 data Cfg = Cfg { cfgOauthConsumerKey    :: String
                , cfgOauthConsumerSecret :: String
                , cfgAccessToken         :: Maybe String
                , cfgAccessTokenSecret   :: Maybe String
                , cfgCloudDbUrl          :: String } deriving (Show, Generic)
-
-instance FromJSON Cfg where
-  parseJSON (Object x) = do
-    cfgOauthConsumerKey <- x .: "oauthConsumerKey"
-    cfgOauthConsumerSecret <- x .: "oauthConsumerSecret"
-    cfgAccessToken <- x .:? "accessToken"
-    cfgAccessTokenSecret <- x .:? "accessTokenSecret"
-    cfgCloudDbUrl <- x .: "cloudDbUrl"
-
-    return $ Cfg {..}
-    
-  parseJSON _ = mzero
-
-instance ToJSON Cfg where
-  toJSON (Cfg {..}) = object $ catMaybes [ "oauthConsumerKey" .== cfgOauthConsumerKey
-                                         , "oauthConsumerSecret" .== cfgOauthConsumerSecret
-                                         , "accessToken" .=? cfgAccessToken
-                                         , "accessTokenSecret" .=? cfgAccessTokenSecret
-                                         , "cloudDbUrl" .== cfgCloudDbUrl]     
 
 data AppState a = RunState { startTime        :: UTCTime
                            , db               :: a
