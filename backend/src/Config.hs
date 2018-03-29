@@ -2,8 +2,8 @@ module Config where
 
 serverName         = "api.twitter.com"
 
-oauthInfo          = "oauth-info.txt"
-userConfig         = "twic.json"
+accessConfig       = "twic.json"
+userConfig         = "config.json"
 logFile            = "twic.log"
 
 oneSecond          = 1000000 :: Int

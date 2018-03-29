@@ -50,7 +50,10 @@ module BL.Core (
 
 import           Data.Text                      (pack, unpack)
 
+import           System.Directory
 import           System.IO
+import           System.FilePath
+
 import qualified Web.Authenticate.OAuth         as OA
 
 import qualified Data.ByteString                as B
@@ -126,9 +129,11 @@ obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
     
     case (lookup "oauth_token" $ unCredential accessTokens, lookup "oauth_token_secret" $ unCredential accessTokens) of
         (ot@(Just _), ots@(Just _)) -> do
+            homePath <- getHomeDirectory
             let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot, cfgAccessTokenSecret = BS.unpack <$> ots }
+            let acfg = AccessCfg { acfgAccessToken = cfgAccessToken cfg', acfgAccessTokenSecret = cfgAccessTokenSecret cfg' }
             modifyMVar_ rs (\(s@RunState {}) -> return $ s { conf = cfg' })
-            BSL.writeFile CFG.userConfig $ encodePretty cfg'
+            BSL.writeFile (homePath </> ".twic" </> CFG.accessConfig) $ encodePretty acfg
         (_, _) -> debug "we have some problem"
 
 renewAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        

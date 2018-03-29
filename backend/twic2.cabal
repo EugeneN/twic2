@@ -81,3 +81,4 @@ Executable twic
     , lens-action
     , lens
     , resourcet
+    , filepath

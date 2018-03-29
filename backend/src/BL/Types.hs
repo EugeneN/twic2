@@ -92,6 +92,22 @@ makeAppState a b c d e f g h j i k l =
 
 -- deriving instance Show Config
 
+data AccessCfg = AccessCfg { acfgAccessToken         :: Maybe String
+                           , acfgAccessTokenSecret   :: Maybe String } deriving (Show, Generic)
+
+instance FromJSON AccessCfg where
+  parseJSON (Object x) = do
+    acfgAccessToken <- x .:? "accessToken"
+    acfgAccessTokenSecret <- x .:? "accessTokenSecret"
+
+    return $ AccessCfg {..}
+    
+  parseJSON _ = mzero
+
+instance ToJSON AccessCfg where
+  toJSON (AccessCfg {..}) = object $ catMaybes [ "accessToken" .=? acfgAccessToken
+                                               , "accessTokenSecret" .=? acfgAccessTokenSecret]   
+
 data Cfg = Cfg { cfgOauthConsumerKey    :: String
                , cfgOauthConsumerSecret :: String
                , cfgAccessToken         :: Maybe String

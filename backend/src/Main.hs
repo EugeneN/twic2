@@ -10,7 +10,7 @@ import           BL.DataLayer              (MyDb, getPrevState, openDb)
 import           BL.Types
 import           BL.Worker                 (accountFetchWorker, streamWorker,
                                             timeoutWorker, updateWorker)
-import           Config                    (port, userConfig, logFile)
+import           Config                    (port, userConfig, logFile, accessConfig)
 
 import           Network.Wai
 import           Network.Wai.Handler.Warp  (run)
@@ -22,14 +22,17 @@ import           Control.Concurrent        (MVar, ThreadId, forkIO, killThread,
                                             myThreadId, newEmptyMVar, newMVar,
                                             putMVar, readMVar, swapMVar,
                                             takeMVar)
-import           Control.Monad             (forever, void)
+import           Control.Monad             (forever, void, unless)
 
 import           Prelude                   hiding (error)
 import           System.Log.Formatter
 import           System.Log.Handler        (setFormatter)
 import           System.Log.Handler.Simple
 import           System.Log.Logger
-import           System.IO                 (stderr)
+-- import           System.IO                 (stderr)
+import           System.Directory
+import           System.IO
+import           System.FilePath
 
 import qualified BL.CloudDataLayer         as CDL
 import qualified Control.Exception         as E
@@ -198,11 +201,24 @@ ctrlCHandler av = Catch $ do
 
 withConfig :: FilePath -> (Cfg -> IO ()) -> IO ()
 withConfig name t = do
+    homePath <- getHomeDirectory
+
+    let twicFolderPath = homePath </> ".twic"
+    let twicFilePath = twicFolderPath </> accessConfig
+
+    fileExists <- doesFileExist twicFilePath
+    createDirectoryIfMissing True twicFolderPath
+
+    unless fileExists $ writeFile twicFilePath "{}"
+
+    rawAccessConfig <- BL.readFile twicFilePath
     rawConfig <- BL.readFile name
 
-    case eitherDecode rawConfig of
-        Right cfg@(Cfg {}) -> t cfg
-        Left e -> putStrLn ("Error: " ++ show e)
+    case (eitherDecode rawConfig, eitherDecode rawAccessConfig) of
+        (Right cfg@(Cfg {}), Right acfg@(AccessCfg {})) -> t (cfg { cfgAccessToken = acfgAccessToken acfg
+                                                                  , cfgAccessTokenSecret = acfgAccessTokenSecret acfg })
+        (Right cfg@(Cfg {}), _) -> t cfg                                                    
+        (Left e, _) -> putStrLn ("Error: " ++ show e)
 
 main :: IO ()
 main = do
