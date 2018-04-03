@@ -10,7 +10,7 @@ import           BL.DataLayer              (MyDb, getPrevState, openDb)
 import           BL.Types
 import           BL.Worker                 (accountFetchWorker, streamWorker,
                                             timeoutWorker, updateWorker)
-import           Config                    (port, userConfig, logFile, accessConfig)
+import           Config                    (port, logFile, accessConfig, cloudDbUrl, oauthConsumerSecret, oauthConsumerKey)
 
 import           Network.Wai
 import           Network.Wai.Handler.Warp  (run)
@@ -60,18 +60,9 @@ alert = alertM logRealm
 usage :: String
 usage = "Usage: <me> serve | cli | dump"
 
-confUsage :: String
-confUsage = "\nExpecting `" ++ userConfig ++ "` config file with Twitter OAuth settings.\n"
-         ++ "See https://github.com/EugeneN/twic/wiki/Quick-start#how-to-configure-and-run-twic\n"
-
 logUsage :: String
 logUsage = "\nExpecting `" ++ logFile ++ "` log file.\n"
         ++ "See https://github.com/EugeneN/twic/wiki/Quick-start#how-to-configure-and-run-twic\n"
-
-badConf :: String
-badConf = "\nBad or uncomplete `" ++ userConfig ++ "` config file.\n"
-       ++ "See https://github.com/EugeneN/twic/wiki/Quick-start#how-to-configure-and-run-twic\n"
-
 
 httpWorker :: Application -> IO ThreadId
 httpWorker =  forkIO . run port . simpleCors
@@ -196,20 +187,22 @@ ctrlCHandler av = Catch $ do
     alert "Got Ctrl-C, sending exit cmd"
     putMVar av MExit
 
-withConfig :: FilePath -> (Cfg -> IO ()) -> IO ()
-withConfig name t = do
+withConfig :: (Cfg -> IO ()) -> IO ()
+withConfig t = do
     twicFilePath <- BLC.writeAccessConfig False (AccessCfg { acfgAccessToken = Nothing
                                                            , acfgAccessTokenSecret = Nothing
                                                            , acfgUserId = Nothing })
     rawAccessConfig <- BL.readFile twicFilePath
-    rawConfig <- BL.readFile name
 
-    case (eitherDecode rawConfig, eitherDecode rawAccessConfig) of
-        (Right cfg@(Cfg {}), Right acfg@(AccessCfg {})) -> t (cfg { cfgAccessToken = acfgAccessToken acfg
-                                                                  , cfgAccessTokenSecret = acfgAccessTokenSecret acfg
-                                                                  , cfgCurrentUserId = acfgUserId acfg })
-        (Right cfg@(Cfg {}), _) -> t cfg                                                    
-        (Left e, _) -> putStrLn ("Error: " ++ show e)
+    let cfg = Cfg { cfgOauthConsumerKey = oauthConsumerKey
+                    , cfgOauthConsumerSecret = oauthConsumerSecret
+                    , cfgCloudDbUrl = cloudDbUrl }
+
+    case eitherDecode rawAccessConfig of
+        Right acfg@(AccessCfg {}) -> t (cfg { cfgAccessToken = acfgAccessToken acfg
+                                              , cfgAccessTokenSecret = acfgAccessTokenSecret acfg
+                                              , cfgCurrentUserId = acfgUserId acfg })                                                   
+        Left e -> putStrLn ("Error: " ++ show e)
 
 main :: IO ()
 main = do
@@ -229,7 +222,7 @@ main = do
 
   args <- parseArgs
   case args of
-      Just (Args action) -> withConfig userConfig $ \cfg -> do
+      Just (Args action) -> withConfig $ \cfg -> do
           db       <- openDb
           fv       <- newMVar ([] :: FeedState)
           av       <- newEmptyMVar
