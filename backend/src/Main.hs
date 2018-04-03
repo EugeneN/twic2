@@ -198,13 +198,16 @@ ctrlCHandler av = Catch $ do
 
 withConfig :: FilePath -> (Cfg -> IO ()) -> IO ()
 withConfig name t = do
-    twicFilePath <- BLC.writeAccessConfig False (AccessCfg { acfgAccessToken = Nothing, acfgAccessTokenSecret = Nothing })
+    twicFilePath <- BLC.writeAccessConfig False (AccessCfg { acfgAccessToken = Nothing
+                                                           , acfgAccessTokenSecret = Nothing
+                                                           , acfgUserId = Nothing })
     rawAccessConfig <- BL.readFile twicFilePath
     rawConfig <- BL.readFile name
 
     case (eitherDecode rawConfig, eitherDecode rawAccessConfig) of
         (Right cfg@(Cfg {}), Right acfg@(AccessCfg {})) -> t (cfg { cfgAccessToken = acfgAccessToken acfg
-                                                                  , cfgAccessTokenSecret = acfgAccessTokenSecret acfg })
+                                                                  , cfgAccessTokenSecret = acfgAccessTokenSecret acfg
+                                                                  , cfgCurrentUserId = acfgUserId acfg })
         (Right cfg@(Cfg {}), _) -> t cfg                                                    
         (Left e, _) -> putStrLn ("Error: " ++ show e)
 

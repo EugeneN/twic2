@@ -204,6 +204,7 @@ instance FromJSON Cfg where
     cfgOauthConsumerSecret <- x .: "oauthConsumerSecret"
     cfgAccessToken <- x .:? "accessToken"
     cfgAccessTokenSecret <- x .:? "accessTokenSecret"
+    cfgCurrentUserId <- x .:? "currentUserId"
     cfgCloudDbUrl <- x .: "cloudDbUrl"
 
     return $ Cfg {..}
@@ -215,12 +216,14 @@ instance ToJSON Cfg where
                                          , "oauthConsumerSecret" .== cfgOauthConsumerSecret
                                          , "accessToken" .=? cfgAccessToken
                                          , "accessTokenSecret" .=? cfgAccessTokenSecret
+                                         , "currentUserId" .=? cfgCurrentUserId
                                          , "cloudDbUrl" .== cfgCloudDbUrl]
 
 instance FromJSON AccessCfg where
   parseJSON (Object x) = do
     acfgAccessToken <- x .:? "accessToken"
     acfgAccessTokenSecret <- x .:? "accessTokenSecret"
+    acfgUserId <- x .:? "userId"
 
     return $ AccessCfg {..}
     
@@ -228,6 +231,7 @@ instance FromJSON AccessCfg where
 
 instance ToJSON AccessCfg where
   toJSON (AccessCfg {..}) = object $ catMaybes [ "accessToken" .=? acfgAccessToken
-                                                , "accessTokenSecret" .=? acfgAccessTokenSecret]                                           
+                                                , "accessTokenSecret" .=? acfgAccessTokenSecret
+                                                , "userId" .=? acfgUserId]                                           
 
 #endif                                                

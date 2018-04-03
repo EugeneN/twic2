@@ -60,16 +60,18 @@ instance ToJSON WriteResponse where
 
 -- TODO check if tweetid is correctly parsed to/from json
 data CloudDbStoreItem = CloudDbStoreItem { lastSeenId :: TweetId
+                                         , userId     :: Integer
                                          , at         :: String -- UTCTime
                                          } deriving (Show, Eq, Ord, Generic)
 
 instance FromJSON CloudDbStoreItem
 instance ToJSON CloudDbStoreItem
 
-
-applyLimit :: String -> String -> Int -> String
-applyLimit url orderByKey count = url ++ "?orderBy=\"" ++ orderByKey
-                                      ++ "\"&limitToLast=" ++ show count
+applyLimit :: String -> String -> Integer -> Int -> String
+applyLimit url orderByKey userId count = url ++ "?orderBy=\"userId\""
+                                             ++ "&equalTo=" ++ show userId
+                                             ++ "&orderByKey=\"" ++ orderByKey
+                                             ++ "\"&limitToLast=" ++ show count
 
 readCloudJSON :: DBL.ByteString -> Either CloudDataLayerError [CloudDbStoreItem]
 readCloudJSON str = case decode str :: Maybe (Map String CloudDbStoreItem) of
@@ -77,16 +79,23 @@ readCloudJSON str = case decode str :: Maybe (Map String CloudDbStoreItem) of
     Nothing -> Left $ CloudDbDataError "error reading cloud json"
 
 -- TODO offline garbage collection.
-readCloudDb :: String -> IO (Either CloudDataLayerError [CloudDbStoreItem])
-readCloudDb url = do
-    req <- parseUrl $ applyLimit url "lastSeenId" 10
-    res <- try $ withManager $ \m -> httpLbs req m
+readCloudDb :: String -> Cfg -> IO (Either CloudDataLayerError [CloudDbStoreItem])
+readCloudDb url cfg = do
+    let uid' = cfgCurrentUserId cfg
 
-    return $ case res of
-        Left x  -> Left $ CloudDbTransportError x
-        Right y -> case readCloudJSON $ responseBody y of
-            Left err -> Left err
-            Right xs -> Right xs
+    case uid' of
+        Just uid -> do
+            let url' = applyLimit url "lastSeenId" uid 10
+            debug $ "URL => " ++ show url'
+            req <- parseUrl url'
+            res <- try $ withManager $ \m -> httpLbs req m
+        
+            return $ case res of
+                Left x  -> Left $ CloudDbTransportError x
+                Right y -> case readCloudJSON $ responseBody y of
+                    Left err -> Left err
+                    Right xs -> Right xs
+        Nothing -> return $ Left $ CloudDbApiError "Problem with user id"
 
 
 writeCloudDb :: CloudDbStoreItem -> Cfg -> IO (Either CloudDataLayerError WriteResponse)

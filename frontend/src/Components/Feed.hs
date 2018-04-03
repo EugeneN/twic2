@@ -248,10 +248,10 @@ feedComponent parentControllerE (wsi, wsReady) requestUserInfoU ntU busyU = do
                 Nothing -> ts
       in ts'
 
-    feedOp op (old, cur, new, _) = case op of
+    feedOp op all@(old, cur, new, _) = case op of
       AddNew t   -> (old, cur, (Set.insert t new), Just op)
       ShowNew    -> ((Set.union old cur), new, Set.empty, Just op)
-      ShowOld n  -> let (t, old') = Set.deleteFindMax old in (old', (Set.insert t cur), new, Just op)
+      ShowOld n  -> if Set.null old == True then all else let (t, old') = Set.deleteFindMax old in (old', (Set.insert t cur), new, Just op)
       MarkRt t x -> (toggleRt t x old, toggleRt t x cur, toggleRt t x new, Just op)
       MarkLv t x -> (toggleLv t x old, toggleLv t x cur, toggleLv t x new, Just op)
       _          -> (old, cur, new, Just op)

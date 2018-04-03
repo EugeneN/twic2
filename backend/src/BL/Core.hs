@@ -149,12 +149,18 @@ obtainAccessToken rs credentialStore oauthToken' oauthVerifier cfg = do
 
     accessTokens <- withManager $ \m -> OA.getAccessToken auth (OA.insert "oauth_verifier" oauthVerifier cred) m
     
-    case (lookup "oauth_token" $ unCredential accessTokens, lookup "oauth_token_secret" $ unCredential accessTokens) of
-        (ot@(Just _), ots@(Just _)) -> do
-            let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot, cfgAccessTokenSecret = BS.unpack <$> ots }
+    case ( lookup "oauth_token" $ unCredential accessTokens
+         , lookup "oauth_token_secret" $ unCredential accessTokens
+         , lookup "user_id" $ unCredential accessTokens) of
+        (ot@(Just _), ots@(Just _), userId@(Just _)) -> do
+            let cfg' = cfg { cfgAccessToken = BS.unpack <$> ot
+                           , cfgAccessTokenSecret = BS.unpack <$> ots
+                           , cfgCurrentUserId = (\x -> read $ BS.unpack x :: Integer) <$> userId }
             modifyMVar_ rs (\(s@RunState {}) -> return $ s { conf = cfg' })
-            void $ writeAccessConfig True $ AccessCfg { acfgAccessToken = cfgAccessToken cfg', acfgAccessTokenSecret = cfgAccessTokenSecret cfg' }
-        (_, _) -> debug "we have some problem"
+            void $ writeAccessConfig True $ AccessCfg { acfgAccessToken = cfgAccessToken cfg'
+                                                      , acfgAccessTokenSecret = cfgAccessTokenSecret cfg'
+                                                      , acfgUserId = cfgCurrentUserId cfg' }
+        _ -> debug "we have some problem"
 
 renewAuthToken :: MVar (BS.ByteString, Credential) -> Cfg -> IO (Either String LoginInfo)        
 renewAuthToken cs cfg = do
@@ -180,8 +186,8 @@ checkAuthentication :: MVar (AppState DL.MyDb) -> MVar (BS.ByteString, Credentia
 checkAuthentication rs cs = do
     cfg <- conf <$> readMVar rs
 
-    case (cfgAccessToken cfg, cfgAccessTokenSecret cfg) of
-        (Just _, Just _) -> do
+    case (cfgAccessToken cfg, cfgAccessTokenSecret cfg, cfgCurrentUserId cfg) of
+        (Just _, Just _, Just _) -> do
             res <- (try $ withManager $ \m -> do
                 signedreq <- OA.signOAuth (oauthToken cfg) (oauthCredential cfg) =<< parseUrl accountSettingsUrl
                 httpLbs signedreq m) :: IO (Either SomeException (Network.HTTP.Conduit.Response BSL.ByteString))
@@ -327,9 +333,9 @@ homeTimelineMaxidCount 0 count = HomeTimeline $
 homeTimelineMaxidCount tid count = HomeTimeline $
     "https://api.twitter.com/1.1/statuses/home_timeline.json?count=" ++ show count ++ "&max_id=" ++ show tid
 
-getUpdateFeedUrl :: DL.MyDb -> String -> IO Feed
-getUpdateFeedUrl db url = do
-  xs <- CDL.readCloudDb url
+getUpdateFeedUrl :: DL.MyDb -> String -> Cfg -> IO Feed
+getUpdateFeedUrl db url cfg = do
+  xs <- CDL.readCloudDb url cfg
   info $ "Read from cloud db with result of length: " ++ show (length <$> xs)
 
   let z = case xs of
@@ -355,15 +361,19 @@ saveLastSeenAsync db ts cfg = forkIO $ saveLastSeen db ts cfg >> return ()
 saveLastSeen :: DL.MyDb -> FeedState -> Cfg -> IO (Either CDL.CloudDataLayerError CDL.WriteResponse)
 saveLastSeen _ ts _ | justTweets ts == [] = return $ Right $ CDL.WriteSuccess "write skipped"
 saveLastSeen db ts cfg = do
-    now <- getCurrentTime
-    res <- CDL.writeCloudDb (CDL.CloudDbStoreItem (getMaxId $ justTweets ts) (show now)) cfg -- now
-    info $ "Wrote to cloud db with result: " ++ show res
-    return res
+    let uid' = cfgCurrentUserId cfg
 
+    case uid' of
+        Just uid -> do
+            now <- getCurrentTime
+            res <- CDL.writeCloudDb (CDL.CloudDbStoreItem (getMaxId $ justTweets ts) uid (show now)) cfg -- now
+            info $ "Wrote to cloud db with result: " ++ show res
+            return res
+        Nothing -> return $ Left $ CDL.CloudDbApiError "Problem with user id"
     where
-    getMaxId :: [Tweet] -> TweetId
-    --getMaxId [] = ?
-    getMaxId ts = maximum (BL.Types.id <$> ts)
+        getMaxId :: [Tweet] -> TweetId
+        --getMaxId [] = ?
+        getMaxId ts = maximum (BL.Types.id <$> ts)
 
 putToClientQueue q ms = do
     maybeOldMs <- tryTakeMVar q
@@ -389,7 +399,8 @@ readUserstream sn count cfg = do
 readUserInfo sn cfg = withManager $ \mgr -> do
     res <- liftIO $ callWithResponse (twInfo cfg) mgr $ usersShow (ScreenNameParam sn)
     case Web.Twitter.Conduit.responseStatus res of
-        HTTP.Status {statusCode = 200, statusMessage = _ } ->
+        HTTP.Status {statusCode = 200, statusMessage = _ } -> do
+            liftIO $ debug $ "USER INFO => " ++ show res
             return $ Right $ Web.Twitter.Conduit.responseBody res -- res :: User
 
         HTTP.Status {statusCode=code, statusMessage=msg} ->
@@ -439,7 +450,7 @@ updateFeed uv = do
 updateFeedSync :: DL.MyDb -> MVar FeedState -> Cfg -> IO ()
 updateFeedSync db fv cfg = do
     info "Updating feed"
-    feedUrl <- getUpdateFeedUrl db (cfgCloudDbUrl cfg)
+    feedUrl <- getUpdateFeedUrl db (cfgCloudDbUrl cfg) cfg
     doreq feedUrl db fv (0 :: Int)
 
   where
@@ -560,7 +571,7 @@ getRunTime st = do
 -- TODO type aliases and type for status
 getStatus :: UTCTime -> DL.MyDb -> Cfg -> IO (TweetId, UTCTime, NominalDiffTime)
 getStatus st db cfg = do
-    xs <- CDL.readCloudDb (cfgCloudDbUrl cfg)
+    xs <- CDL.readCloudDb (cfgCloudDbUrl cfg) cfg
     (_, prevTime) <- DL.getPrevState db
     rt <- getRunTime st
 

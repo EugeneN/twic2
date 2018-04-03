@@ -91,12 +91,14 @@ makeAppState a b c d e f g h j i k l =
 -- deriving instance Show Config
 
 data AccessCfg = AccessCfg { acfgAccessToken         :: Maybe String
-                           , acfgAccessTokenSecret   :: Maybe String } deriving (Show, Generic)
+                           , acfgAccessTokenSecret   :: Maybe String
+                           , acfgUserId       :: Maybe Integer } deriving (Show, Generic)
 
 data Cfg = Cfg { cfgOauthConsumerKey    :: String
                , cfgOauthConsumerSecret :: String
                , cfgAccessToken         :: Maybe String
                , cfgAccessTokenSecret   :: Maybe String
+               , cfgCurrentUserId       :: Maybe Integer
                , cfgCloudDbUrl          :: String } deriving (Show, Generic)
 
 data AppState a = RunState { startTime        :: UTCTime
